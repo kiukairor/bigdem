@@ -8,7 +8,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/YOUR_ORG/pulse
+    repoURL: https://github.com/kiukairor/bigdem
     targetRevision: main
     path: infra/helm/redis
     helm:
