@@ -1,0 +1,46 @@
+## Node
+node_modules/
+.next/
+.env
+.env.local
+.env*.local
+npm-debug.log*
+
+## Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+bin/
+vendor/
+
+## Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+dist/
+
+## Docker
+.dockerignore
+
+## IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+## OS
+.DS_Store
+Thumbs.db
+
+## Secrets — never commit these!
+*.pem
+*.key
+secrets/
+
+# Local config with real secrets — never commit
+config.env

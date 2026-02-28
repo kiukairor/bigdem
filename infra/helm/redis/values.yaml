@@ -1,0 +1,15 @@
+image:
+  repository: redis
+  tag: "7-alpine"
+service:
+  port: 6379
+storage:
+  size: 1Gi
+  storageClass: "standard"
+resources:
+  requests:
+    memory: "64Mi"
+    cpu: "50m"
+  limits:
+    memory: "128Mi"
+    cpu: "100m"

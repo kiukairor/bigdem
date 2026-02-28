@@ -1,0 +1,92 @@
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  transition: border-color 0.2s, transform 0.2s;
+  cursor: default;
+}
+
+.card:hover {
+  border-color: #333;
+  transform: translateY(-2px);
+}
+
+.category {
+  font-size: 0.65rem;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  border: 1px solid;
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  width: fit-content;
+}
+
+.title {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  letter-spacing: 0.05em;
+  line-height: 1.2;
+  color: var(--text);
+}
+
+.desc {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+.meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.venue {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.dateTime {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.dot { color: var(--border); }
+
+.footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: auto;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+
+.price {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  letter-spacing: 0.05em;
+}
+
+.saveBtn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 0.65rem;
+  font-weight: 500;
+  letter-spacing: 0.15em;
+  padding: 0.3rem 0.7rem;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: var(--font-body);
+}
+
+.saveBtn:hover { border-color: var(--accent); color: var(--accent); }
+.saved { border-color: var(--accent) !important; color: var(--accent) !important; }

@@ -1,0 +1,53 @@
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 1rem;
+  border: 1px solid var(--border);
+  background: none;
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  transition: all 0.15s;
+  color: var(--text-dim);
+}
+
+.on { border-color: var(--green); color: var(--green); }
+.on:hover { background: rgba(60,255,138,0.08); }
+.off:hover { border-color: var(--accent); color: var(--accent); }
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.reasonBox {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.reasonLabel {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.reasons { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+
+.reasonBtn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 0.65rem;
+  padding: 0.25rem 0.6rem;
+  cursor: pointer;
+  font-family: var(--font-body);
+  transition: all 0.15s;
+}
+.reasonBtn:hover { border-color: var(--red); color: var(--red); }

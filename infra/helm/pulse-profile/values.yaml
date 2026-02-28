@@ -1,0 +1,35 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/YOUR_ORG/pulse-profile
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+imagePullSecrets:
+  - name: ghcr-secret
+
+service:
+  type: ClusterIP
+  port: 3002
+
+ingress:
+  enabled: false
+
+env:
+  NEW_RELIC_APP_NAME: "pulse-pulse-profile"
+  PORT: "3002"
+
+resources:
+  requests:
+    memory: "128Mi"
+    cpu: "100m"
+  limits:
+    memory: "256Mi"
+    cpu: "500m"
+
+secrets:
+  newrelic: newrelic-secret
+  postgres: postgres-secret
+  redis: redis-secret
+  anthropic: anthropic-secret
+  app: app-secret

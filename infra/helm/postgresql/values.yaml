@@ -1,0 +1,17 @@
+image:
+  repository: postgres
+  tag: "16-alpine"
+storage:
+  size: 5Gi
+  storageClass: "standard"
+service:
+  port: 5432
+secrets:
+  postgres: postgres-secret
+resources:
+  requests:
+    memory: "256Mi"
+    cpu: "100m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"

@@ -1,0 +1,37 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/YOUR_ORG/pulse-feed
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+imagePullSecrets:
+  - name: ghcr-secret
+
+service:
+  type: ClusterIP
+  port: 3001
+
+ingress:
+  enabled: false
+
+env:
+  NEW_RELIC_APP_NAME: "pulse-pulse-feed"
+  PORT: "3001"
+  NEXT_PUBLIC_EVENT_SVC_URL: "http://event-svc:8080"
+  NEXT_PUBLIC_AI_SVC_URL: "http://ai-svc:8082"
+
+resources:
+  requests:
+    memory: "128Mi"
+    cpu: "100m"
+  limits:
+    memory: "256Mi"
+    cpu: "500m"
+
+secrets:
+  newrelic: newrelic-secret
+  postgres: postgres-secret
+  redis: redis-secret
+  anthropic: anthropic-secret
+  app: app-secret
