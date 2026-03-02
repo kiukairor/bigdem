@@ -205,9 +205,9 @@ Custom NR metrics: `Custom/AICircuitBreaker/State`, `Custom/AI/ResponseMs`, `Cus
 - [x] Fix Helm values: replace YOUR_ORG placeholder with kiukairor
 - [x] Fix Dockerfile: run via newrelic-admin for NR instrumentation
 - [x] Fix apply-secrets.sh: default namespace was versus-prod, fixed to pulse-prod
-- [ ] Unblock cluster: fix postgresql + redis PVC binding (storage class issue)
-- [ ] Apply K8s secrets via apply-secrets.sh (blocking all pods — CreateContainerConfigError)
-- [ ] Fix InvalidImageName on ai-svc, event-svc, pulse-shell, pulse-feed, pulse-profile
+- [x] Unblock cluster: fix postgresql + redis PVC binding (storageClass standard → local-path)
+- [ ] Apply K8s secrets via apply-secrets.sh (blocking non-session-svc pods)
+- [x] Fix CI workflows: replaced stale versus-era workflows (soul-svc, duel-svc, etc.) with correct PULSE workflows for ai-svc, event-svc, pulse-shell, pulse-feed, pulse-profile
 - [ ] pulse-profile MFE: user profile page, saved events list, preferences editor
 - [ ] event-svc: add saved events endpoints
 - [ ] ai-svc: cache last recommendation per user in Redis
