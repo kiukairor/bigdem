@@ -1,7 +1,7 @@
 replicaCount: 1
 
 image:
-  repository: ghcr.io/YOUR_ORG/pulse-shell
+  repository: ghcr.io/kiukairor/pulse-shell
   pullPolicy: IfNotPresent
   tag: "latest"
 

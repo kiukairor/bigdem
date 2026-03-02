@@ -1,7 +1,7 @@
 replicaCount: 1
 
 image:
-  repository: ghcr.io/YOUR_ORG/ai-svc
+  repository: ghcr.io/kiukairor/ai-svc
   pullPolicy: IfNotPresent
   tag: "latest"
 

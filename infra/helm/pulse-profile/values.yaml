@@ -1,7 +1,7 @@
 replicaCount: 1
 
 image:
-  repository: ghcr.io/YOUR_ORG/pulse-profile
+  repository: ghcr.io/kiukairor/pulse-profile
   pullPolicy: IfNotPresent
   tag: "latest"
 
