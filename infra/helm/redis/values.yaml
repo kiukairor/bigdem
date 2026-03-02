@@ -5,7 +5,7 @@ service:
   port: 6379
 storage:
   size: 1Gi
-  storageClass: "standard"
+  storageClass: "local-path"
 resources:
   requests:
     memory: "64Mi"

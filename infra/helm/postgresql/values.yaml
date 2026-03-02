@@ -3,7 +3,7 @@ image:
   tag: "16-alpine"
 storage:
   size: 5Gi
-  storageClass: "standard"
+  storageClass: "local-path"
 service:
   port: 5432
 secrets:
