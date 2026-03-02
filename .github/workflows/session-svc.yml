@@ -4,12 +4,12 @@ on:
   push:
     branches: [main]
     paths:
-      - 'frontends/session-svc/**'
+      - 'services/session-svc/**'
       - '.github/workflows/session-svc.yml'
   pull_request:
     branches: [main]
     paths:
-      - 'frontends/session-svc/**'
+      - 'services/session-svc/**'
 
 env:
   REGISTRY: ghcr.io
@@ -48,7 +48,7 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
-          context: ./frontends/session-svc
+          context: ./services/session-svc
           platforms: linux/arm64   # Raspberry Pi
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}

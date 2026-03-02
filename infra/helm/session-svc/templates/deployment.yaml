@@ -59,6 +59,16 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.secrets.postgres }}
                   key: database
+            - name: REDIS_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.redis }}
+                  key: host
+            - name: REDIS_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.redis }}
+                  key: port
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           livenessProbe:
