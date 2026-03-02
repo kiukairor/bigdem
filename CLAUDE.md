@@ -37,9 +37,10 @@ versus/                          ← repo root (github.com/kiukairor/bigdem)
 │   ├── ai-svc/                  ← Python 3.12 + FastAPI, port 8082, REAL CODE EXISTS
 │   │   ├── main.py              ← entry point
 │   │   └── circuit_breaker.py   ← AI circuit breaker (CLOSED/OPEN/HALF_OPEN)
-│   └── session-svc/             ← Python 3.12 + FastAPI, port 8081, PLACEHOLDER ONLY
-│       ├── Dockerfile            ← exists but service not built yet
-│       └── requirements.txt     ← exists but service not built yet
+│   └── session-svc/             ← Python 3.12 + FastAPI, port 8081, REAL CODE EXISTS
+│       ├── main.py              ← entry point
+│       ├── Dockerfile            ← runs via newrelic-admin
+│       └── requirements.txt
 ├── infra/
 │   └── helm/                    ← one Helm chart per service
 │       ├── pulse-shell/
@@ -68,9 +69,9 @@ versus/                          ← repo root (github.com/kiukairor/bigdem)
 | `pulse-profile` | 🔲 Week 2 | Not built yet |
 | `event-svc` | ✅ Week 1 done | Real Go code, needs go.sum |
 | `ai-svc` | ✅ Week 1 done | Real Python code with circuit breaker |
-| `session-svc` | 🔲 Week 2 | Placeholder only, needs real code |
-| `postgresql` | ✅ Deployed | StatefulSet on cluster |
-| `redis` | ✅ Deployed | StatefulSet on cluster |
+| `session-svc` | ✅ Week 2 done | Real Python/FastAPI, Redis + PG, NR instrumented |
+| `postgresql` | ⚠️ Pending | StatefulSet on cluster, PVC not bound — storage issue |
+| `redis` | ⚠️ Pending | StatefulSet on cluster, PVC not bound — storage issue |
 
 ---
 
@@ -153,7 +154,8 @@ Single source of truth: `config.env` at repo root (gitignored — NEVER commit i
 
 Apply all secrets to K8s:
 ```bash
-./scripts/apply-secrets.sh pulse-prod
+./scripts/apply-secrets.sh
+# defaults to pulse-prod (fixed — was incorrectly defaulting to versus-prod)
 ```
 
 K8s secret names used in Helm charts:
@@ -192,13 +194,20 @@ Custom NR metrics: `Custom/AICircuitBreaker/State`, `Custom/AI/ResponseMs`, `Cus
 - db/seed.sql: schema + 20 London events
 - Helm charts, ArgoCD apps, GitHub Actions CI
 
-### 🔲 Week 2 — START HERE
-- [ ] session-svc: build real Python/FastAPI service
+### 🔄 Week 2 — IN PROGRESS
+- [x] session-svc: build real Python/FastAPI service
   - POST /sessions, GET /sessions/:id
   - POST /sessions/:id/saved-events, DELETE /sessions/:id/saved-events/:event_id
   - Redis caching for session state
   - PostgreSQL persistence for saved events
-  - NR instrumentation
+  - NR instrumentation (SessionCreated, EventSaved, EventUnsaved custom events)
+- [x] Fix CI workflow: path trigger + build context (frontends/ → services/)
+- [x] Fix Helm values: replace YOUR_ORG placeholder with kiukairor
+- [x] Fix Dockerfile: run via newrelic-admin for NR instrumentation
+- [x] Fix apply-secrets.sh: default namespace was versus-prod, fixed to pulse-prod
+- [ ] Unblock cluster: fix postgresql + redis PVC binding (storage class issue)
+- [ ] Apply K8s secrets via apply-secrets.sh (blocking all pods — CreateContainerConfigError)
+- [ ] Fix InvalidImageName on ai-svc, event-svc, pulse-shell, pulse-feed, pulse-profile
 - [ ] pulse-profile MFE: user profile page, saved events list, preferences editor
 - [ ] event-svc: add saved events endpoints
 - [ ] ai-svc: cache last recommendation per user in Redis
