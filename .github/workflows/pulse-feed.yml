@@ -1,19 +1,19 @@
-name: Build and Deploy — versus-profile
+name: Build and Deploy — pulse-feed
 
 on:
   push:
     branches: [main]
     paths:
-      - 'frontends/versus-profile/**'
-      - '.github/workflows/versus-profile.yml'
+      - 'frontends/pulse-feed/**'
+      - '.github/workflows/pulse-feed.yml'
   pull_request:
     branches: [main]
     paths:
-      - 'frontends/versus-profile/**'
+      - 'frontends/pulse-feed/**'
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/versus-profile
+  IMAGE_NAME: ${{ github.repository_owner }}/pulse-feed
 
 jobs:
   build:
@@ -48,7 +48,7 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
-          context: ./frontends/versus-profile
+          context: ./frontends/pulse-feed
           platforms: linux/arm64   # Raspberry Pi
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
@@ -72,9 +72,9 @@ jobs:
       - name: Update Helm values with new image tag
         run: |
           SHA_TAG="sha-$(echo ${{ github.sha }} | cut -c1-7)"
-          sed -i "s/tag: .*/tag: \"${SHA_TAG}\"/" infra/helm/versus-profile/values.yaml
+          sed -i "s/tag: .*/tag: \"${SHA_TAG}\"/" infra/helm/pulse-feed/values.yaml
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add infra/helm/versus-profile/values.yaml
-          git commit -m "ci: update versus-profile image tag to ${SHA_TAG} [skip ci]"
+          git add infra/helm/pulse-feed/values.yaml
+          git commit -m "ci: update pulse-feed image tag to ${SHA_TAG} [skip ci]"
           git push

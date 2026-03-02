@@ -1,19 +1,19 @@
-name: Build and Deploy — versus-shell
+name: Build and Deploy — ai-svc
 
 on:
   push:
     branches: [main]
     paths:
-      - 'frontends/versus-shell/**'
-      - '.github/workflows/versus-shell.yml'
+      - 'services/ai-svc/**'
+      - '.github/workflows/ai-svc.yml'
   pull_request:
     branches: [main]
     paths:
-      - 'frontends/versus-shell/**'
+      - 'services/ai-svc/**'
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/versus-shell
+  IMAGE_NAME: ${{ github.repository_owner }}/ai-svc
 
 jobs:
   build:
@@ -48,7 +48,7 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
-          context: ./frontends/versus-shell
+          context: ./services/ai-svc
           platforms: linux/arm64   # Raspberry Pi
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
@@ -72,9 +72,9 @@ jobs:
       - name: Update Helm values with new image tag
         run: |
           SHA_TAG="sha-$(echo ${{ github.sha }} | cut -c1-7)"
-          sed -i "s/tag: .*/tag: \"${SHA_TAG}\"/" infra/helm/versus-shell/values.yaml
+          sed -i "s/tag: .*/tag: \"${SHA_TAG}\"/" infra/helm/ai-svc/values.yaml
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add infra/helm/versus-shell/values.yaml
-          git commit -m "ci: update versus-shell image tag to ${SHA_TAG} [skip ci]"
+          git add infra/helm/ai-svc/values.yaml
+          git commit -m "ci: update ai-svc image tag to ${SHA_TAG} [skip ci]"
           git push
