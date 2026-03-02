@@ -4,7 +4,7 @@
 
 set -e
 
-NAMESPACE=${1:-versus-prod}
+NAMESPACE=${1:-pulse-prod}
 CONFIG_FILE="$(dirname "$0")/../config.env"
 
 if [ ! -f "$CONFIG_FILE" ]; then
