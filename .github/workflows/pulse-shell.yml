@@ -78,4 +78,5 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add infra/helm/pulse-shell/values.yaml
           git commit -m "ci: update pulse-shell image tag to ${SHA_TAG} [skip ci]"
+          git pull --rebase origin main
           git push
