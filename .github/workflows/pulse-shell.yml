@@ -10,6 +10,7 @@ on:
     branches: [main]
     paths:
       - 'frontends/pulse-shell/**'
+  workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
@@ -59,7 +60,7 @@ jobs:
   update-image-tag:
     needs: build
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     permissions:
       contents: write
 
