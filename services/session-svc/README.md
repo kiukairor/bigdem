@@ -70,9 +70,9 @@ Read path:   API → Redis (GET) → fallback to PostgreSQL if cache miss
 
 ```bash
 pip install -r requirements.txt
-uvicorn main:app --port 8081  # without NR
+uvicorn main:app --host 0.0.0.0 --port 8081  # without NR
 # or
-newrelic-admin run-program uvicorn main:app --port 8081  # with NR
+newrelic-admin run-program uvicorn main:app --host 0.0.0.0 --port 8081  # with NR
 ```
 
 ## Be Careful Of

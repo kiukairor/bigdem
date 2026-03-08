@@ -1,6 +1,5 @@
-'use client'
 import dynamic from 'next/dynamic'
-import Header from '@/components/Header'
+import Header from '../components/Header'
 
 const FeedApp = dynamic(
   () => import('feed/FeedApp').catch(() => () => <FeedFallback />),

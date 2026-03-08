@@ -69,9 +69,9 @@ From a user's perspective, this powers the "Recommended for you" sidebar in the 
 
 ```bash
 pip install -r requirements.txt
-uvicorn main:app --port 8082  # without NR
+uvicorn main:app --host 0.0.0.0 --port 8082  # without NR
 # or
-newrelic-admin run-program uvicorn main:app --port 8082  # with NR
+newrelic-admin run-program uvicorn main:app --host 0.0.0.0 --port 8082  # with NR
 ```
 
 ## Be Careful Of
