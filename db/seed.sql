@@ -73,7 +73,7 @@ INSERT INTO events (id, title, description, category, venue, address, city, date
 INSERT INTO events (id, title, description, category, venue, address, city, date, price_gbp, tags) VALUES
 ('evt_013', 'Premier League: Arsenal vs Chelsea', 'The North London derby meets West London in this crucial Premier League clash.', 'sport', 'Emirates Stadium', 'Holloway Rd, London N7 7AJ', 'London', NOW() + INTERVAL '4 days', 65.00, ARRAY['football', 'premier league', 'derby']),
 ('evt_014', 'London Marathon Training Run', 'Community 10K training run through Hyde Park. All paces welcome. Free post-run coffee.', 'sport', 'Hyde Park', 'Hyde Park, London W2 2UH', 'London', NOW() + INTERVAL '2 days', 0.00, ARRAY['running', 'community', 'free']),
-('evt_015', 'Yoga in the Park', 'Sunrise yoga session in Regent''s Park led by certified instructor. Mats provided.', 'sport', "Regent's Park", "Regent's Park, London NW1 4NR", 'London', NOW() + INTERVAL '1 day', 12.00, ARRAY['yoga', 'outdoor', 'morning']),
+('evt_015', 'Yoga in the Park', 'Sunrise yoga session in Regent''s Park led by certified instructor. Mats provided.', 'sport', 'Regent''s Park', 'Regent''s Park, London NW1 4NR', 'London', NOW() + INTERVAL '1 day', 12.00, ARRAY['yoga', 'outdoor', 'morning']),
 ('evt_016', 'Boxing Night at York Hall', 'Professional boxing evening featuring six bouts. Doors 6pm, first bout 7:30pm.', 'sport', 'York Hall', '5 Old Ford Rd, Bethnal Green, London E2 9PJ', 'London', NOW() + INTERVAL '6 days', 30.00, ARRAY['boxing', 'evening', 'east london']);
 
 -- Events: Tech (4)

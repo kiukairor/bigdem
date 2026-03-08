@@ -3,7 +3,7 @@ import './globals.css'
 
 export const metadata: Metadata = {
   title: 'PULSE — London Events',
-  description: 'Discover what's happening in London',
+  description: "Discover what's happening in London",
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
