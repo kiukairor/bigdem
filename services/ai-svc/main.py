@@ -6,7 +6,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
-from anthropic import Anthropic, RateLimitError, APITimeoutError
+from anthropic import Anthropic, APIError
 from circuit_breaker import CircuitBreaker
 
 newrelic.agent.initialize()
@@ -89,7 +89,7 @@ def get_recommendations(req: RecommendationRequest):
             ai_response_ms=elapsed_ms,
         )
 
-    except (RateLimitError, APITimeoutError) as e:
+    except APIError as e:
         log.error(f"Claude API error: {e}")
         cb.record_failure()
 
