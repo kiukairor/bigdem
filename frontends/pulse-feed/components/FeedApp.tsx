@@ -7,6 +7,15 @@ import styles from './FeedApp.module.css'
 
 const CATEGORIES = ['all', 'music', 'food', 'art', 'sport', 'tech']
 
+const CATEGORY_ICONS: Record<string, string> = {
+  all: '✦',
+  music: '♫',
+  food: '🍽',
+  art: '🎨',
+  sport: '⚡',
+  tech: '💻',
+}
+
 const EVENT_SVC = process.env.NEXT_PUBLIC_EVENT_SVC_URL || 'http://localhost:8080'
 const AI_SVC = process.env.NEXT_PUBLIC_AI_SVC_URL || 'http://localhost:8082'
 
@@ -96,7 +105,7 @@ export default function FeedApp() {
                 className={`${styles.catBtn} ${category === cat ? styles.active : ''}`}
                 onClick={() => setCategory(cat)}
               >
-                {cat.toUpperCase()}
+                <span>{CATEGORY_ICONS[cat]}</span> {cat.toUpperCase()}
               </button>
             ))}
           </div>

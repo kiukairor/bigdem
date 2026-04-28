@@ -8,6 +8,14 @@ const CATEGORY_COLORS: Record<string, string> = {
   tech: '#3cb8ff',
 }
 
+const CATEGORY_ICONS: Record<string, string> = {
+  music: '♫',
+  food: '🍽',
+  art: '🎨',
+  sport: '⚡',
+  tech: '💻',
+}
+
 export default function EventCard({ event, saved, onSave }: any) {
   const color = CATEGORY_COLORS[event.category] || '#888'
   const date = new Date(event.date)
@@ -18,7 +26,7 @@ export default function EventCard({ event, saved, onSave }: any) {
   return (
     <div className={styles.card}>
       <div className={styles.category} style={{ color, borderColor: color }}>
-        {event.category.toUpperCase()}
+        {CATEGORY_ICONS[event.category]} {event.category.toUpperCase()}
       </div>
       <h3 className={styles.title}>{event.title}</h3>
       <p className={styles.desc}>{event.description.slice(0, 100)}...</p>
