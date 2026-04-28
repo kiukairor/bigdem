@@ -24,6 +24,7 @@ ingress:
 
 env:
   NEW_RELIC_APP_NAME: "pulse-pulse-shell"
+  HOSTNAME: "0.0.0.0"
   PORT: "3000"
   NEXT_PUBLIC_FEED_MFE_URL: "http://pulse-feed:3001"
   NEXT_PUBLIC_PROFILE_MFE_URL: "http://pulse-profile:3002"

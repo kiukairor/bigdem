@@ -17,6 +17,7 @@ ingress:
 
 env:
   NEW_RELIC_APP_NAME: "pulse-pulse-profile"
+  HOSTNAME: "0.0.0.0"
   PORT: "3002"
 
 resources:
