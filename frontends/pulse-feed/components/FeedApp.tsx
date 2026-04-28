@@ -47,6 +47,7 @@ export default function FeedApp() {
           available_events: allEvents,
         }),
       })
+      if (!res.ok) throw new Error(`ai-svc ${res.status}`)
       const data = await res.json()
       setRecommendations(data.recommendations)
       setAiMode(data.mode)
