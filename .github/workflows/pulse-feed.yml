@@ -56,6 +56,9 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          build-args: |
+            NEXT_PUBLIC_EVENT_SVC_URL=http://event-svc:8080
+            NEXT_PUBLIC_AI_SVC_URL=http://ai-svc:8082
 
   update-image-tag:
     needs: build
