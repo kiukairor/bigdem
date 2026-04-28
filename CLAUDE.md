@@ -64,14 +64,14 @@ versus/                          ← repo root (github.com/kiukairor/bigdem)
 
 | Service | Status | Notes |
 |---------|--------|-------|
-| `pulse-shell` | ✅ Week 1 done | Real Next.js code |
-| `pulse-feed` | ✅ Week 1 done | Real Next.js code with AI toggle |
-| `pulse-profile` | 🔲 Week 2 | Not built yet |
-| `event-svc` | ✅ Week 1 done | Real Go code, needs go.sum |
-| `ai-svc` | ✅ Week 1 done | Real Python code with circuit breaker |
-| `session-svc` | ✅ Week 2 done | Real Python/FastAPI, Redis + PG, NR instrumented |
-| `postgresql` | ⚠️ Pending | StatefulSet on cluster, PVC not bound — storage issue |
-| `redis` | ⚠️ Pending | StatefulSet on cluster, PVC not bound — storage issue |
+| `pulse-shell` | ✅ Running | CI passing, image sha-8ee9073, MFE host |
+| `pulse-feed` | ✅ Running | CI passing, image sha-a07d225, MFE remote |
+| `pulse-profile` | 🔲 Week 2 | No code yet — replicaCount=0 to prevent ImagePullBackOff |
+| `event-svc` | ✅ Running | Go, smoke tested, 20 events returning |
+| `ai-svc` | ✅ Running | Python, circuit breaker CLOSED |
+| `session-svc` | ✅ Running | Python/FastAPI, Redis + PG, NR instrumented |
+| `postgresql` | ✅ Running | Seeded: 20 events, 1 demo user |
+| `redis` | ✅ Running | local-path StorageClass |
 
 ---
 
@@ -154,8 +154,17 @@ Single source of truth: `config.env` at repo root (gitignored — NEVER commit i
 
 Apply all secrets to K8s:
 ```bash
-./scripts/apply-secrets.sh
-# defaults to pulse-prod (fixed — was incorrectly defaulting to versus-prod)
+./scripts/apply-secrets.sh pulse-prod
+```
+
+Then apply the GHCR pull secret separately (GITHUB_USER and GITHUB_PAT must be in config.env):
+```bash
+export $(grep -v '^#' config.env | grep -v '^$' | xargs)
+kubectl create secret docker-registry ghcr-secret \
+  --docker-server=ghcr.io \
+  --docker-username="$GITHUB_USER" \
+  --docker-password="$GITHUB_PAT" \
+  -n pulse-prod --dry-run=client -o yaml | kubectl apply -f -
 ```
 
 K8s secret names used in Helm charts:
@@ -164,7 +173,7 @@ K8s secret names used in Helm charts:
 - `postgres-secret` → username, password, database, host, port
 - `redis-secret` → host, port
 - `app-secret` → demo-city, demo-user-id, demo-user-name, cb-failure-threshold, cb-recovery-timeout
-- `ghcr-secret` → Docker registry pull secret
+- `ghcr-secret` → Docker registry pull secret (GITHUB_USER + GITHUB_PAT in config.env, not applied by apply-secrets.sh)
 
 ---
 
@@ -206,14 +215,17 @@ Custom NR metrics: `Custom/AICircuitBreaker/State`, `Custom/AI/ResponseMs`, `Cus
 - [x] Fix Dockerfile: run via newrelic-admin for NR instrumentation
 - [x] Fix apply-secrets.sh: default namespace was versus-prod, fixed to pulse-prod
 - [x] Unblock cluster: fix postgresql + redis PVC binding (storageClass standard → local-path)
-- [ ] Apply K8s secrets via apply-secrets.sh (blocking non-session-svc pods)
-- [x] Fix CI workflows: replaced stale versus-era workflows (soul-svc, duel-svc, etc.) with correct PULSE workflows for ai-svc, event-svc, pulse-shell, pulse-feed, pulse-profile
+- [x] Apply K8s secrets via apply-secrets.sh + GHCR pull secret
+- [x] Fix CI workflows: replaced stale versus-era workflows with correct PULSE workflows
+- [x] Fix pulse-shell + pulse-feed CI (MF build, webpack devDep, public/ dir, NEXT_PRIVATE_LOCAL_WEBPACK)
+- [x] Full cluster rebuild from repo config (ArgoCD + local-path + secrets + seed)
+- [x] All backend services smoke tested and healthy on cluster
 - [ ] pulse-profile MFE: user profile page, saved events list, preferences editor
 - [ ] event-svc: add saved events endpoints
 - [ ] ai-svc: cache last recommendation per user in Redis
 - [ ] pulse-feed: connect save button to session-svc (currently local state only)
 - [ ] Verify distributed tracing end-to-end: shell → feed → event-svc → ai-svc
-- [ ] Deploy and smoke test on Pi cluster
+- [ ] End-to-end UI smoke test (shell → feed → events loading in browser)
 
 ### 🔲 Week 3
 - [ ] Bug scenarios 1-3 as env flag toggles

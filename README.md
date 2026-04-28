@@ -11,7 +11,7 @@
 | `pulse-profile` | Next.js (remote MFE) | 3002 | User profile (Week 2) |
 | `event-svc` | Go + Gin | 8080 | Events CRUD, user preferences |
 | `ai-svc` | Python + FastAPI | 8082 | Claude AI recommendations, circuit breaker |
-| `session-svc` | Python + FastAPI | 8081 | Session management (Week 2) |
+| `session-svc` | Python + FastAPI | 8081 | Session management, Redis cache, saved events |
 
 ## Quick Start
 
@@ -21,15 +21,29 @@ cp config.env.example config.env
 # Edit config.env with your keys
 ```
 
-### 2. Apply secrets to K8s
+### 2. Install prerequisites (if cluster is fresh)
 ```bash
-chmod +x scripts/apply-secrets.sh
-./scripts/apply-secrets.sh pulse-prod
+# local-path StorageClass (for postgres/redis PVCs)
+kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.26/deploy/local-path-storage.yaml
+
+# ArgoCD
+kubectl create namespace argocd
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/v3.3.2/manifests/install.yaml
 ```
 
-### 3. Seed the database
+### 3. Apply secrets to K8s
 ```bash
-kubectl exec -n pulse-prod deploy/postgresql -- psql -U pulse -d pulse < db/seed.sql
+chmod +x scripts/apply-secrets.sh
+kubectl create namespace pulse-prod
+./scripts/apply-secrets.sh pulse-prod
+
+# GHCR pull secret (add GITHUB_USER + GITHUB_PAT to config.env first)
+export $(grep -v '^#' config.env | grep -v '^$' | xargs)
+kubectl create secret docker-registry ghcr-secret \
+  --docker-server=ghcr.io \
+  --docker-username="$GITHUB_USER" \
+  --docker-password="$GITHUB_PAT" \
+  -n pulse-prod --dry-run=client -o yaml | kubectl apply -f -
 ```
 
 ### 4. Deploy via ArgoCD
@@ -37,7 +51,12 @@ kubectl exec -n pulse-prod deploy/postgresql -- psql -U pulse -d pulse < db/seed
 kubectl apply -f argocd/app-of-apps.yaml
 ```
 
-### 5. Access the app
+### 5. Seed the database
+```bash
+cat db/seed.sql | kubectl exec -i -n pulse-prod postgresql-0 -- psql -U pulse -d pulse
+```
+
+### 6. Access the app
 Add to `/etc/hosts`: `<PI_IP>  pulse.local`  
 Open: http://pulse.local
 
@@ -54,8 +73,8 @@ pulse-shell (host)
         │
         ├── event-svc (Go)     ← events, user prefs, opt-out logging
         ├── ai-svc (Python)    ← Claude API, circuit breaker, fallback
-        └── session-svc (Py)   ← sessions (Week 2)
+        └── session-svc (Py)   ← sessions, saved events
               │
-              ├── PostgreSQL   ← events, users, opt-out log
-              └── Redis        ← session cache (Week 2)
+              ├── PostgreSQL   ← events, users, opt-out log, saved events
+              └── Redis        ← session cache
 ```
