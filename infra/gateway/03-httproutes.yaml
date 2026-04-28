@@ -1,0 +1,133 @@
+# HTTPRoutes for PULSE services
+# All routes live in pulse-prod namespace and bind to the nginx-gateway
+# in the nginx-gateway namespace (allowed via listener allowedRoutes.namespaces.from: All).
+#
+# Host-based routing:
+#   pulse.local             → pulse-shell:3000  (app shell)
+#   feed.pulse.local        → pulse-feed:3001   (MFE remote)
+#   event.pulse.local       → event-svc:8080    (events API)
+#   ai.pulse.local          → ai-svc:8082       (AI recommendations API)
+#   session.pulse.local     → session-svc:8081  (session API)
+#
+# /etc/hosts on your local machine:
+#   <PI_IP>  pulse.local feed.pulse.local event.pulse.local ai.pulse.local session.pulse.local
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: pulse-shell
+  namespace: pulse-prod
+spec:
+  parentRefs:
+  - name: nginx-gateway
+    namespace: nginx-gateway
+    sectionName: https
+  - name: nginx-gateway
+    namespace: nginx-gateway
+    sectionName: http
+  hostnames:
+  - "pulse.local"
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /
+    backendRefs:
+    - name: pulse-shell
+      port: 3000
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: pulse-feed
+  namespace: pulse-prod
+spec:
+  parentRefs:
+  - name: nginx-gateway
+    namespace: nginx-gateway
+    sectionName: https
+  - name: nginx-gateway
+    namespace: nginx-gateway
+    sectionName: http
+  hostnames:
+  - "feed.pulse.local"
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /
+    backendRefs:
+    - name: pulse-feed
+      port: 3001
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: event-svc
+  namespace: pulse-prod
+spec:
+  parentRefs:
+  - name: nginx-gateway
+    namespace: nginx-gateway
+    sectionName: https
+  - name: nginx-gateway
+    namespace: nginx-gateway
+    sectionName: http
+  hostnames:
+  - "event.pulse.local"
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /
+    backendRefs:
+    - name: event-svc
+      port: 8080
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: ai-svc
+  namespace: pulse-prod
+spec:
+  parentRefs:
+  - name: nginx-gateway
+    namespace: nginx-gateway
+    sectionName: https
+  - name: nginx-gateway
+    namespace: nginx-gateway
+    sectionName: http
+  hostnames:
+  - "ai.pulse.local"
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /
+    backendRefs:
+    - name: ai-svc
+      port: 8082
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: session-svc
+  namespace: pulse-prod
+spec:
+  parentRefs:
+  - name: nginx-gateway
+    namespace: nginx-gateway
+    sectionName: https
+  - name: nginx-gateway
+    namespace: nginx-gateway
+    sectionName: http
+  hostnames:
+  - "session.pulse.local"
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /
+    backendRefs:
+    - name: session-svc
+      port: 8081

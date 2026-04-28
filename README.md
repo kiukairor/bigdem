@@ -56,9 +56,26 @@ kubectl apply -f argocd/app-of-apps.yaml
 cat db/seed.sql | kubectl exec -i -n pulse-prod postgresql-0 -- psql -U pulse -d pulse
 ```
 
-### 6. Access the app
-Add to `/etc/hosts`: `<PI_IP>  pulse.local`  
-Open: http://pulse.local
+### 6. Install gateway (no more port-forwarding)
+```bash
+chmod +x scripts/apply-gateway.sh
+./scripts/apply-gateway.sh
+```
+
+Add to `/etc/hosts` on your local machine (the script prints the exact line):
+```
+<PI_IP>  pulse.local feed.pulse.local event.pulse.local ai.pulse.local session.pulse.local
+```
+
+| URL | Service |
+|---|---|
+| https://pulse.local:30443 | App shell |
+| https://feed.pulse.local:30443 | Feed MFE |
+| https://event.pulse.local:30443 | Events API |
+| https://ai.pulse.local:30443 | AI API |
+| https://session.pulse.local:30443 | Session API |
+
+Accept the self-signed cert warning in the browser, or install `infra/gateway/tls/tls.crt` into your local trust store.
 
 ## Observability Demo Script
 
