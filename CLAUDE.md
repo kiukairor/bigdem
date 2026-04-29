@@ -64,14 +64,17 @@ versus/                          ← repo root (github.com/kiukairor/bigdem)
 
 | Service | Status | Notes |
 |---------|--------|-------|
-| `pulse-shell` | ✅ Running | CI passing, image sha-8ee9073, MFE host |
-| `pulse-feed` | ✅ Running | CI passing, image sha-a07d225, MFE remote |
+| `pulse-shell` | ✅ Running | MFE host, city picker (London/Paris), single public entry point |
+| `pulse-feed` | ✅ Running | Events grid, category filter (sport icon = 🏃), AI panel |
 | `pulse-profile` | 🔲 Week 2 | No code yet — replicaCount=0 to prevent ImagePullBackOff |
-| `event-svc` | ✅ Running | Go, smoke tested, 20 events returning |
-| `ai-svc` | ✅ Running | Python, circuit breaker CLOSED |
+| `event-svc` | ✅ Running | Go, city filter (?city=), 40 events (20 London + 20 Paris) |
+| `ai-svc` | ✅ Running | Python, circuit breaker CLOSED, city-aware recommendations |
 | `session-svc` | ✅ Running | Python/FastAPI, Redis + PG, NR instrumented |
-| `postgresql` | ✅ Running | Seeded: 20 events, 1 demo user |
+| `postgresql` | ✅ Running | Seeded: 40 events, 1 demo user |
 | `redis` | ✅ Running | local-path StorageClass |
+| `gateway` | ✅ Running | NGINX GW Fabric v1.6.1, NodePort :30443, pulse.test only |
+
+Image tags are managed by CI (GitHub Actions updates values.yaml automatically on each push).
 
 ---
 
@@ -200,11 +203,15 @@ Custom NR metrics: `Custom/AICircuitBreaker/State`, `Custom/AI/ResponseMs`, `Cus
 
 ### ✅ Week 1 — COMPLETE
 - event-svc (Go): /health, /events, /events/:id, /events/category/:c, /user, /user/ai-preference
+- event-svc: city filter via ?city= query param (DEMO_CITY env fallback)
 - ai-svc (Python): /health, /status, /recommendations + circuit breaker + rule-based fallback
-- pulse-shell: dark theme, Module Federation host, header with AI status
-- pulse-feed: event grid, category filter, save button, AI panel, AI toggle + reason survey
-- db/seed.sql: schema + 20 London events
+- pulse-shell: dark theme, Module Federation host, header with city picker (London / Paris)
+- pulse-shell: single public entry point — Next.js rewrites proxy all MFE + API traffic
+- pulse-feed: event grid, category filter (sport = 🏃), save button, AI panel, AI toggle + reason survey
+- pulse-feed: city-aware (re-fetches events + AI recs on city change)
+- db/seed.sql: schema + 20 London events + 20 Paris events (real venues)
 - Helm charts, ArgoCD apps, GitHub Actions CI
+- NGINX Gateway Fabric v1.6.1 + K8s GW API v1.3.0, NodePort :30080/:30443, self-signed TLS for *.pulse.test
 
 ### 🔄 Week 2 — IN PROGRESS
 - [x] session-svc: build real Python/FastAPI service
@@ -223,11 +230,13 @@ Custom NR metrics: `Custom/AICircuitBreaker/State`, `Custom/AI/ResponseMs`, `Cus
 - [x] Fix pulse-shell + pulse-feed CI (MF build, webpack devDep, public/ dir, NEXT_PRIVATE_LOCAL_WEBPACK)
 - [x] Full cluster rebuild from repo config (ArgoCD + local-path + secrets + seed)
 - [x] All backend services smoke tested and healthy on cluster
+- [x] NR Browser: add snippet to pulse-shell _document.tsx (SPA agent v1.313.1, secrets-driven, error_sampling_rate:50.0)
+- [x] NR Browser: add snippet to pulse-feed _document.tsx (SPA agent v1.313.1, secrets-driven, error_sampling_rate:10.0)
 - [ ] pulse-profile MFE: user profile page, saved events list, preferences editor
 - [ ] event-svc: add saved events endpoints
 - [ ] ai-svc: cache last recommendation per user in Redis
 - [ ] pulse-feed: connect save button to session-svc (currently local state only)
-- [ ] Verify distributed tracing end-to-end: shell → feed → event-svc → ai-svc
+- [ ] Verify distributed tracing end-to-end: browser → shell proxy → event-svc → PostgreSQL
 - [ ] End-to-end UI smoke test (shell → feed → events loading in browser)
 
 ### 🔲 Week 3

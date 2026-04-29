@@ -24,10 +24,15 @@ kubectl create secret generic anthropic-secret \
   --from-literal=model="$CLAUDE_MODEL" \
   -n "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
 
-# New Relic
+# New Relic (APM + Browser)
+# Browser keys are optional — leave them blank if Browser apps not yet created in NR console
 kubectl create secret generic newrelic-secret \
   --from-literal=license-key="$NEW_RELIC_LICENSE_KEY" \
   --from-literal=account-id="$NEW_RELIC_ACCOUNT_ID" \
+  --from-literal=browser-license-key="${NEW_RELIC_BROWSER_LICENSE_KEY:-}" \
+  --from-literal=browser-app-id-shell="${NEW_RELIC_BROWSER_APP_ID_SHELL:-}" \
+  --from-literal=browser-app-id-feed="${NEW_RELIC_BROWSER_APP_ID_FEED:-}" \
+  --from-literal=browser-trust-key="${NEW_RELIC_BROWSER_TRUST_KEY:-}" \
   -n "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
 
 # PostgreSQL

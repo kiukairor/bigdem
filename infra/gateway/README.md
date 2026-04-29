@@ -57,10 +57,12 @@ The script applies in order:
 ## /etc/hosts (local machine)
 
 ```
-<PI_IP>  pulse.test feed.pulse.test event.pulse.test ai.pulse.test session.pulse.test
+<PI_IP>  pulse.test
 ```
 
-Replace `<PI_IP>` with the Pi's IP. The script prints it for you.
+Replace `<PI_IP>` with the Pi's IP. The `./scripts/apply-gateway.sh` script prints the exact line.
+
+Only `pulse.test` is needed — all MFE assets and API calls are proxied through pulse-shell. The browser never leaves `pulse.test:30443`.
 
 ## Verify
 

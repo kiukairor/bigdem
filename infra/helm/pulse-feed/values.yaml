@@ -16,11 +16,12 @@ ingress:
   enabled: false
 
 env:
-  NEW_RELIC_APP_NAME: "pulse-pulse-feed"
+  NEW_RELIC_APP_NAME: "pulse-feed"
   HOSTNAME: "0.0.0.0"
   PORT: "3001"
-  NEXT_PUBLIC_EVENT_SVC_URL: "https://pulse.test:30443/api/event-svc"
-  NEXT_PUBLIC_AI_SVC_URL: "https://pulse.test:30443/api/ai-svc"
+  # NEXT_PUBLIC_* vars are baked into the image at CI build time (Docker build-args).
+  # They cannot be overridden here at runtime. To change public URLs, update
+  # build-args in .github/workflows/pulse-feed.yml and push to trigger a rebuild.
 
 resources:
   requests:

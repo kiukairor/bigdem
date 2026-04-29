@@ -13,23 +13,15 @@ service:
   port: 3000
 
 ingress:
-  enabled: true
-  className: nginx
-  hosts:
-    - host: pulse.local
-      paths:
-        - path: /
-          pathType: Prefix
-  tls: []
+  enabled: false
 
 env:
-  NEW_RELIC_APP_NAME: "pulse-pulse-shell"
+  NEW_RELIC_APP_NAME: "pulse-shell"
   HOSTNAME: "0.0.0.0"
   PORT: "3000"
-  NEXT_PUBLIC_FEED_MFE_URL: "https://pulse.test:30443/_mfe/feed"
-  NEXT_PUBLIC_PROFILE_MFE_URL: "https://pulse.test:30443/_mfe/profile"
-  NEXT_PUBLIC_EVENT_SVC_URL: "https://pulse.test:30443/api/event-svc"
-  NEXT_PUBLIC_AI_SVC_URL: "https://pulse.test:30443/api/ai-svc"
+  # NEXT_PUBLIC_* vars are baked into the image at CI build time (Docker build-args).
+  # They cannot be overridden here at runtime. To change public URLs, update
+  # build-args in .github/workflows/pulse-shell.yml and push to trigger a rebuild.
 
 resources:
   requests:
