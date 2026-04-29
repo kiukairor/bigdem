@@ -57,10 +57,10 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
-            NEXT_PUBLIC_EVENT_SVC_URL=http://event-svc:8080
-            NEXT_PUBLIC_AI_SVC_URL=http://ai-svc:8082
-            NEXT_PUBLIC_FEED_MFE_URL=http://pulse-feed:3001
-            NEXT_PUBLIC_PROFILE_MFE_URL=http://pulse-profile:3002
+            NEXT_PUBLIC_EVENT_SVC_URL=https://event.pulse.test:30443
+            NEXT_PUBLIC_AI_SVC_URL=https://ai.pulse.test:30443
+            NEXT_PUBLIC_FEED_MFE_URL=https://feed.pulse.test:30443
+            NEXT_PUBLIC_PROFILE_MFE_URL=https://profile.pulse.test:30443
 
   update-image-tag:
     needs: build
