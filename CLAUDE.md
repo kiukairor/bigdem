@@ -230,8 +230,9 @@ Custom NR metrics: `Custom/AICircuitBreaker/State`, `Custom/AI/ResponseMs`, `Cus
 - [x] Fix pulse-shell + pulse-feed CI (MF build, webpack devDep, public/ dir, NEXT_PRIVATE_LOCAL_WEBPACK)
 - [x] Full cluster rebuild from repo config (ArgoCD + local-path + secrets + seed)
 - [x] All backend services smoke tested and healthy on cluster
-- [x] NR Browser: add snippet to pulse-shell _document.tsx (SPA agent v1.313.1, secrets-driven, error_sampling_rate:50.0)
-- [x] NR Browser: add snippet to pulse-feed _document.tsx (SPA agent v1.313.1, secrets-driven, error_sampling_rate:10.0)
+- [x] NR Browser: pulse-shell _document.tsx — full SPA agent v1.313.1, secrets from K8s env at runtime (getServerSideProps forces SSR)
+- [x] NR Browser: pulse-feed MFE micro-agent — @newrelic/browser-agent MicroAgent in FeedApp.tsx, NEXT_PUBLIC_NR_* baked at CI build time
+  - Note: requires NR MFE feature flag activated on the account to report separately; host agent (pulse-shell) captures all feed traffic regardless
 - [ ] pulse-profile MFE: user profile page, saved events list, preferences editor
 - [ ] event-svc: add saved events endpoints
 - [ ] ai-svc: cache last recommendation per user in Redis
