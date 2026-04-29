@@ -19,8 +19,8 @@ env:
   NEW_RELIC_APP_NAME: "pulse-pulse-feed"
   HOSTNAME: "0.0.0.0"
   PORT: "3001"
-  NEXT_PUBLIC_EVENT_SVC_URL: "https://event.pulse.test:30443"
-  NEXT_PUBLIC_AI_SVC_URL: "https://ai.pulse.test:30443"
+  NEXT_PUBLIC_EVENT_SVC_URL: "https://pulse.test:30443/api/event-svc"
+  NEXT_PUBLIC_AI_SVC_URL: "https://pulse.test:30443/api/ai-svc"
 
 resources:
   requests:

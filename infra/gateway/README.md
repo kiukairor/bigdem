@@ -20,15 +20,23 @@ The only modification to `fabric-gw-ds.yaml` relative to the upstream repo:
 
 ## Routing
 
-| Hostname | Backend | Port |
+| Hostname | Backend | Notes |
 |---|---|---|
-| `pulse.test` | pulse-shell | 3000 |
-| `feed.pulse.test` | pulse-feed | 3001 |
-| `event.pulse.test` | event-svc | 8080 |
-| `ai.pulse.test` | ai-svc | 8082 |
-| `session.pulse.test` | session-svc | 8081 |
+| `pulse.test` | pulse-shell:3000 | Only public entry point |
 
 Both HTTP (30080) and HTTPS (30443) listeners are active. TLS terminates at the gateway.
+
+pulse-shell proxies everything else internally via Next.js `rewrites()`:
+
+| Browser path | Proxied to |
+|---|---|
+| `/_mfe/feed/*` | `http://pulse-feed:3001/*` |
+| `/_mfe/profile/*` | `http://pulse-profile:3002/*` |
+| `/api/event-svc/*` | `http://event-svc:8080/*` |
+| `/api/ai-svc/*` | `http://ai-svc:8082/*` |
+| `/api/session-svc/*` | `http://session-svc:8081/*` |
+
+The browser never leaves `pulse.test:30443`.
 
 ## Install
 
