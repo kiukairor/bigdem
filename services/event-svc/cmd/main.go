@@ -10,9 +10,9 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	_ "github.com/lib/pq"
 	newrelic "github.com/newrelic/go-agent/v3/newrelic"
 	nrgin "github.com/newrelic/go-agent/v3/integrations/nrgin"
+	_ "github.com/newrelic/go-agent/v3/integrations/nrpq"
 )
 
 type Event struct {
@@ -59,7 +59,7 @@ func main() {
 		" dbname=" + getEnv("POSTGRES_DB", "pulse") +
 		" sslmode=disable"
 
-	db, err = sql.Open("postgres", dsn)
+	db, err = sql.Open("nrpostgres", dsn)
 	if err != nil {
 		log.Fatalf("DB connect error: %v", err)
 	}
@@ -110,9 +110,6 @@ func healthHandler(c *gin.Context) {
 }
 
 func getEventsHandler(c *gin.Context) {
-	txn := newrelic.FromContext(c.Request.Context())
-	defer txn.StartSegment("db.query.events").End()
-
 	city := c.DefaultQuery("city", getEnv("DEMO_CITY", "London"))
 	rows, err := db.QueryContext(c.Request.Context(),
 		`SELECT id, title, description, category, venue, address, city, date, price_gbp, tags
