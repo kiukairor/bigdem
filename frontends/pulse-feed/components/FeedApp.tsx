@@ -17,8 +17,10 @@ const CATEGORY_ICONS: Record<string, string> = {
   tech: '💻',
 }
 
-const EVENT_SVC = process.env.NEXT_PUBLIC_EVENT_SVC_URL || 'http://localhost:8080'
-const AI_SVC = process.env.NEXT_PUBLIC_AI_SVC_URL || 'http://localhost:8082'
+const EVENT_SVC   = process.env.NEXT_PUBLIC_EVENT_SVC_URL   || 'http://localhost:8080'
+const AI_SVC      = process.env.NEXT_PUBLIC_AI_SVC_URL      || 'http://localhost:8082'
+const SESSION_SVC = process.env.NEXT_PUBLIC_SESSION_SVC_URL || 'http://localhost:8081'
+const DEMO_USER   = 'demo_user'
 
 interface FeedAppProps {
   city?: string
@@ -28,6 +30,7 @@ export default function FeedApp({ city = 'London' }: FeedAppProps) {
   const [events, setEvents] = useState([])
   const [recommendations, setRecommendations] = useState([])
   const [savedIds, setSavedIds] = useState<string[]>([])
+  const [sessionId, setSessionId] = useState<string | null>(null)
   const [category, setCategory] = useState('all')
   const [aiEnabled, setAiEnabled] = useState(true)
   const [aiMode, setAiMode] = useState<'ai'|'degraded'|'fallback'|null>(null)
@@ -36,6 +39,31 @@ export default function FeedApp({ city = 'London' }: FeedAppProps) {
   const [user, setUser] = useState<any>(null)
 
   useEffect(() => { initNRMicroAgent() }, [])
+
+  // Create or restore session, load saved events
+  useEffect(() => {
+    const stored = localStorage.getItem('pulse_session_id')
+    const restore = stored
+      ? fetch(`${SESSION_SVC}/sessions/${stored}`).then(r => r.ok ? r.json() : null).catch(() => null)
+      : Promise.resolve(null)
+
+    restore.then(session => {
+      if (session) {
+        setSessionId(session.session_id)
+        setSavedIds(session.saved_event_ids || [])
+      } else {
+        fetch(`${SESSION_SVC}/sessions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: DEMO_USER }),
+        }).then(r => r.json()).then(s => {
+          setSessionId(s.session_id)
+          setSavedIds(s.saved_event_ids || [])
+          localStorage.setItem('pulse_session_id', s.session_id)
+        }).catch(() => {})
+      }
+    })
+  }, [])
 
   useEffect(() => {
     setLoading(true)
@@ -78,10 +106,24 @@ export default function FeedApp({ city = 'London' }: FeedAppProps) {
     }
   }
 
-  const handleSave = (id: string) => {
-    setSavedIds(prev =>
-      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
-    )
+  const handleSave = async (id: string) => {
+    const isSaved = savedIds.includes(id)
+    setSavedIds(prev => isSaved ? prev.filter(x => x !== id) : [...prev, id])
+    if (!sessionId) return
+    try {
+      if (isSaved) {
+        await fetch(`${SESSION_SVC}/sessions/${sessionId}/saved-events/${id}`, { method: 'DELETE' })
+      } else {
+        await fetch(`${SESSION_SVC}/sessions/${sessionId}/saved-events`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ event_id: id }),
+        })
+      }
+    } catch {
+      // revert on failure
+      setSavedIds(prev => isSaved ? [...prev, id] : prev.filter(x => x !== id))
+    }
   }
 
   const handleAIToggle = async (enabled: boolean, reason?: string) => {

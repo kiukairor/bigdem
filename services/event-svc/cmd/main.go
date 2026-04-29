@@ -95,6 +95,10 @@ func main() {
 	r.GET("/events/category/:category", getEventsByCategoryHandler)
 	r.GET("/user", getUserHandler)
 	r.PUT("/user/ai-preference", updateAIPreferenceHandler)
+	r.PUT("/user/preferences", updatePreferencesHandler)
+	r.GET("/user/saved-events", getSavedEventsHandler)
+	r.POST("/user/saved-events", saveEventHandler)
+	r.DELETE("/user/saved-events/:event_id", unsaveEventHandler)
 
 	port := getEnv("PORT", "8080")
 	log.Printf("event-svc listening on :%s", port)
@@ -225,6 +229,84 @@ func updateAIPreferenceHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"ai_enabled": req.AIEnabled})
+}
+
+type UpdatePreferencesRequest struct {
+	Categories []string `json:"categories"`
+}
+
+func updatePreferencesHandler(c *gin.Context) {
+	userID := getEnv("DEMO_USER_ID", "demo_user")
+	var req UpdatePreferencesRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	prefsJSON, _ := json.Marshal(map[string]interface{}{
+		"categories": req.Categories,
+		"times":      []string{"evening", "weekend"},
+		"radius_km":  10,
+	})
+	_, err := db.ExecContext(c.Request.Context(),
+		`UPDATE users SET preferences = $1, updated_at = NOW() WHERE id = $2`,
+		string(prefsJSON), userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"categories": req.Categories})
+}
+
+type SaveEventRequest struct {
+	EventID string `json:"event_id" binding:"required"`
+}
+
+func getSavedEventsHandler(c *gin.Context) {
+	userID := getEnv("DEMO_USER_ID", "demo_user")
+	rows, err := db.QueryContext(c.Request.Context(),
+		`SELECT event_id FROM saved_events WHERE user_id = $1 ORDER BY saved_at DESC`, userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	defer rows.Close()
+	ids := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err == nil {
+			ids = append(ids, id)
+		}
+	}
+	c.JSON(http.StatusOK, gin.H{"saved_event_ids": ids})
+}
+
+func saveEventHandler(c *gin.Context) {
+	userID := getEnv("DEMO_USER_ID", "demo_user")
+	var req SaveEventRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	_, err := db.ExecContext(c.Request.Context(),
+		`INSERT INTO saved_events (user_id, event_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+		userID, req.EventID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"saved": true, "event_id": req.EventID})
+}
+
+func unsaveEventHandler(c *gin.Context) {
+	userID := getEnv("DEMO_USER_ID", "demo_user")
+	eventID := c.Param("event_id")
+	_, err := db.ExecContext(c.Request.Context(),
+		`DELETE FROM saved_events WHERE user_id = $1 AND event_id = $2`, userID, eventID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"saved": false, "event_id": eventID})
 }
 
 func getEnv(key, fallback string) string {

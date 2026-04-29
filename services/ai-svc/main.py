@@ -1,7 +1,9 @@
 import os
+import json
 import time
 import logging
 import newrelic.agent
+import redis as redis_lib
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -25,6 +27,19 @@ cb = CircuitBreaker(
 
 CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-20250514")
 DEMO_CITY = os.getenv("DEMO_CITY", "London")
+REC_CACHE_TTL = 300  # 5 minutes
+
+try:
+    redis_client = redis_lib.Redis(
+        host=os.getenv("REDIS_HOST", "redis"),
+        port=int(os.getenv("REDIS_PORT", "6379")),
+        decode_responses=True,
+    )
+    redis_client.ping()
+    log.info("Connected to Redis")
+except Exception as e:
+    log.warning(f"Redis unavailable, caching disabled: {e}")
+    redis_client = None
 
 
 class RecommendationRequest(BaseModel):
@@ -58,11 +73,29 @@ def status():
 @newrelic.agent.function_trace()
 def get_recommendations(req: RecommendationRequest):
     start = time.time()
+    city = req.user_preferences.get("city", DEMO_CITY)
+    cache_key = f"rec:{req.user_id}:{city}"
 
     # Record custom NR attributes
     newrelic.agent.add_custom_attribute("user_id", req.user_id)
     newrelic.agent.add_custom_attribute("available_events_count", len(req.available_events))
     newrelic.agent.add_custom_attribute("circuit_breaker_state", cb.state)
+
+    # Cache check
+    if redis_client:
+        try:
+            cached = redis_client.get(cache_key)
+            if cached:
+                newrelic.agent.add_custom_attribute("cache_hit", True)
+                log.info(f"Cache hit for {cache_key}")
+                return RecommendationResponse(
+                    recommendations=json.loads(cached),
+                    mode="ai",
+                    ai_response_ms=0,
+                )
+        except Exception as e:
+            log.warning(f"Redis read error: {e}")
+    newrelic.agent.add_custom_attribute("cache_hit", False)
 
     if cb.state == "OPEN":
         log.warning("Circuit breaker OPEN — using rule-based fallback")
@@ -82,6 +115,12 @@ def get_recommendations(req: RecommendationRequest):
 
         newrelic.agent.add_custom_attribute("ai_response_ms", elapsed_ms)
         newrelic.agent.add_custom_attribute("ai_mode", "ai")
+
+        if redis_client:
+            try:
+                redis_client.setex(cache_key, REC_CACHE_TTL, json.dumps(recs))
+            except Exception as e:
+                log.warning(f"Redis write error: {e}")
 
         return RecommendationResponse(
             recommendations=recs,
