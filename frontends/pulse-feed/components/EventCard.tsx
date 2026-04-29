@@ -12,7 +12,7 @@ const CATEGORY_ICONS: Record<string, string> = {
   music: '♫',
   food: '🍽',
   art: '🎨',
-  sport: '⚡',
+  sport: '🏃',
   tech: '💻',
 }
 
