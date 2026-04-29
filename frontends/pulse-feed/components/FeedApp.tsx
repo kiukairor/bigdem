@@ -4,6 +4,7 @@ import EventCard from './EventCard'
 import RecommendationPanel from './RecommendationPanel'
 import AIToggle from './AIToggle'
 import styles from './FeedApp.module.css'
+import { initNRMicroAgent } from '../lib/nr-micro-agent'
 
 const CATEGORIES = ['all', 'music', 'food', 'art', 'sport', 'tech']
 
@@ -33,6 +34,8 @@ export default function FeedApp({ city = 'London' }: FeedAppProps) {
   const [loading, setLoading] = useState(true)
   const [recsLoading, setRecsLoading] = useState(false)
   const [user, setUser] = useState<any>(null)
+
+  useEffect(() => { initNRMicroAgent() }, [])
 
   useEffect(() => {
     setLoading(true)
