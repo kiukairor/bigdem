@@ -59,6 +59,7 @@ jobs:
           build-args: |
             NEXT_PUBLIC_EVENT_SVC_URL=https://pulse.test:30443/api/event-svc
             NEXT_PUBLIC_AI_SVC_URL=https://pulse.test:30443/api/ai-svc
+            NEXT_PUBLIC_SESSION_SVC_URL=https://pulse.test:30443/api/session-svc
             NEXT_PUBLIC_NR_BROWSER_LICENSE_KEY=NRJS-8b23f4a446b9077ee6f
             NEXT_PUBLIC_NR_BROWSER_APP_ID=626697193
             NEXT_PUBLIC_NR_BROWSER_ACCOUNT_ID=7637649

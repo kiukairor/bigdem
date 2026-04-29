@@ -1,0 +1,132 @@
+.container {
+  padding: 2rem;
+  max-width: 900px;
+  margin: 0 auto;
+  font-family: var(--font-body, 'DM Sans', sans-serif);
+  color: var(--text, #f0f0f0);
+}
+
+.section {
+  background: var(--surface, #111111);
+  border: 1px solid #222;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.sectionTitle {
+  font-family: var(--font-display, 'Bebas Neue', sans-serif);
+  font-size: 1.4rem;
+  letter-spacing: 0.1em;
+  color: var(--accent, #e8ff3c);
+  margin: 0 0 1rem 0;
+}
+
+.savedList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.savedItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  background: #1a1a1a;
+  border-radius: 6px;
+  border: 1px solid #2a2a2a;
+}
+
+.savedItemInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.savedItemTitle {
+  font-weight: 500;
+  font-size: 0.95rem;
+}
+
+.savedItemMeta {
+  font-size: 0.78rem;
+  color: var(--text-dim, #888888);
+}
+
+.unsaveBtn {
+  background: none;
+  border: 1px solid #333;
+  color: var(--text-dim, #888);
+  cursor: pointer;
+  padding: 0.3rem 0.7rem;
+  border-radius: 4px;
+  font-size: 0.78rem;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.unsaveBtn:hover {
+  border-color: var(--red, #ff3c3c);
+  color: var(--red, #ff3c3c);
+}
+
+.empty {
+  color: var(--text-dim, #888);
+  font-size: 0.9rem;
+  padding: 0.5rem 0;
+}
+
+.prefGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.prefChip {
+  padding: 0.35rem 0.85rem;
+  border-radius: 20px;
+  border: 1px solid #333;
+  background: #1a1a1a;
+  color: var(--text-dim, #888);
+  cursor: pointer;
+  font-size: 0.82rem;
+  transition: all 0.15s;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.prefChip.active {
+  border-color: var(--accent, #e8ff3c);
+  color: var(--accent, #e8ff3c);
+  background: rgba(232,255,60,0.08);
+}
+
+.savePrefsBtn {
+  margin-top: 1rem;
+  padding: 0.5rem 1.25rem;
+  background: var(--accent, #e8ff3c);
+  color: #080808;
+  border: none;
+  border-radius: 4px;
+  font-family: var(--font-display, 'Bebas Neue', sans-serif);
+  font-size: 1rem;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.savePrefsBtn:hover { opacity: 0.85; }
+.savePrefsBtn:disabled { opacity: 0.4; cursor: default; }
+
+.savedMsg {
+  margin-top: 0.5rem;
+  font-size: 0.82rem;
+  color: var(--green, #3cff8a);
+}
+
+.loading {
+  color: var(--text-dim, #888);
+  font-family: var(--font-display, 'Bebas Neue', sans-serif);
+  letter-spacing: 0.1em;
+  padding: 2rem;
+}

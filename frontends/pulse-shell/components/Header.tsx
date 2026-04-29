@@ -35,11 +35,14 @@ export default function Header({ city, onCityChange }: HeaderProps) {
           ))}
         </div>
       </div>
-      <div className={styles.aiStatus}>
-        <span className={`${styles.aiDot} ${aiEnabled ? styles.aiOn : styles.aiOff}`} />
-        <span className={styles.aiLabel}>
-          {aiEnabled ? 'AI Enhanced' : 'Classic Mode'}
-        </span>
+      <div className={styles.rightNav}>
+        <div className={styles.aiStatus}>
+          <span className={`${styles.aiDot} ${aiEnabled ? styles.aiOn : styles.aiOff}`} />
+          <span className={styles.aiLabel}>
+            {aiEnabled ? 'AI Enhanced' : 'Classic Mode'}
+          </span>
+        </div>
+        <a href="/profile" className={styles.profileLink}>PROFILE</a>
       </div>
     </header>
   )

@@ -233,10 +233,10 @@ Custom NR metrics: `Custom/AICircuitBreaker/State`, `Custom/AI/ResponseMs`, `Cus
 - [x] NR Browser: pulse-shell _document.tsx — full SPA agent v1.313.1, secrets from K8s env at runtime (getServerSideProps forces SSR)
 - [x] NR Browser: pulse-feed MFE micro-agent — @newrelic/browser-agent MicroAgent in FeedApp.tsx, NEXT_PUBLIC_NR_* baked at CI build time
   - Note: requires NR MFE feature flag activated on the account to report separately; host agent (pulse-shell) captures all feed traffic regardless
-- [ ] pulse-profile MFE: user profile page, saved events list, preferences editor
-- [ ] event-svc: add saved events endpoints
-- [ ] ai-svc: cache last recommendation per user in Redis
-- [ ] pulse-feed: connect save button to session-svc (currently local state only)
+- [x] pulse-profile MFE: saved events list + preferences editor, exposed as profile/ProfileApp via MFE
+- [x] event-svc: GET/POST/DELETE /user/saved-events, PUT /user/preferences
+- [x] ai-svc: Redis cache for recommendations (TTL 300s, key rec:{user_id}:{city})
+- [x] pulse-feed: save button wired to session-svc, session restored from localStorage
 - [ ] Verify distributed tracing end-to-end: browser → shell proxy → event-svc → PostgreSQL
 - [ ] End-to-end UI smoke test (shell → feed → events loading in browser)
 
