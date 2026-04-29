@@ -169,7 +169,7 @@ metadata:
   name: nginx-gateway
   namespace: nginx-gateway
 spec:
-  externalTrafficPolicy: Cluster
+  externalTrafficPolicy: Local
   ports:
   - name: http
     port: 80
