@@ -1,4 +1,4 @@
-import { Html, Head, Main, NextScript } from 'next/document'
+import Document, { Html, Head, Main, NextScript, DocumentContext, DocumentInitialProps } from 'next/document'
 
 // NREUM.init — feature flags only, no secrets.
 const NR_INIT = `;window.NREUM||(NREUM={});NREUM.init={session_replay:{enabled:true,block_selector:'',mask_text_selector:'*',sampling_rate:10.0,error_sampling_rate:50.0,mask_all_inputs:true,collect_fonts:true,inline_images:false,inline_stylesheet:true,fix_stylesheets:true,preload:false,mask_input_options:{}},distributed_tracing:{enabled:true},performance:{capture_measures:true},browser_consent_mode:{enabled:false},privacy:{cookies_enabled:true},ajax:{deny_list:["bam.nr-data.net"],capture_payloads:'none'}};`
@@ -13,28 +13,39 @@ function buildNRConfig(licenseKey: string, appId: string, accountId: string, tru
     + `;NREUM.info={beacon:"bam.nr-data.net",errorBeacon:"bam.nr-data.net",licenseKey:"${licenseKey}",applicationID:"${appId}",sa:1};`
 }
 
-export default function Document() {
-  const licenseKey = process.env.NEW_RELIC_BROWSER_LICENSE_KEY
-  const appId = process.env.NEW_RELIC_BROWSER_APP_ID
-  const accountId = process.env.NEW_RELIC_ACCOUNT_ID
-  const trustKey = process.env.NEW_RELIC_BROWSER_TRUST_KEY || accountId
-  const hasNR = Boolean(licenseKey && appId && accountId)
+type Props = DocumentInitialProps & { nrConfig: string | null }
 
-  return (
-    <Html lang="en">
-      <Head>
-        <meta name="description" content="City events with AI recommendations" />
-        {hasNR && (
-          <>
-            <script dangerouslySetInnerHTML={{ __html: buildNRConfig(licenseKey!, appId!, accountId!, trustKey!) }} />
-            <script dangerouslySetInnerHTML={{ __html: NR_LOADER }} />
-          </>
-        )}
-      </Head>
-      <body>
-        <Main />
-        <NextScript />
-      </body>
-    </Html>
-  )
+export default class MyDocument extends Document<Props> {
+  static async getInitialProps(ctx: DocumentContext): Promise<Props> {
+    const base = await Document.getInitialProps(ctx)
+    const licenseKey = process.env.NEW_RELIC_BROWSER_LICENSE_KEY
+    const appId     = process.env.NEW_RELIC_BROWSER_APP_ID
+    const accountId = process.env.NEW_RELIC_ACCOUNT_ID
+    const trustKey  = process.env.NEW_RELIC_BROWSER_TRUST_KEY || accountId
+    const nrConfig  = licenseKey && appId && accountId
+      ? buildNRConfig(licenseKey, appId, accountId, trustKey!)
+      : null
+    return { ...base, nrConfig }
+  }
+
+  render() {
+    const { nrConfig } = this.props as Props
+    return (
+      <Html lang="en">
+        <Head>
+          <meta name="description" content="City events with AI recommendations" />
+          {nrConfig && (
+            <>
+              <script dangerouslySetInnerHTML={{ __html: nrConfig }} />
+              <script dangerouslySetInnerHTML={{ __html: NR_LOADER }} />
+            </>
+          )}
+        </Head>
+        <body>
+          <Main />
+          <NextScript />
+        </body>
+      </Html>
+    )
+  }
 }
