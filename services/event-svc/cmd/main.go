@@ -109,9 +109,10 @@ func getEventsHandler(c *gin.Context) {
 	txn := newrelic.FromContext(c.Request.Context())
 	defer txn.StartSegment("db.query.events").End()
 
+	city := c.DefaultQuery("city", getEnv("DEMO_CITY", "London"))
 	rows, err := db.QueryContext(c.Request.Context(),
 		`SELECT id, title, description, category, venue, address, city, date, price_gbp, tags
-		 FROM events ORDER BY date ASC`)
+		 FROM events WHERE city = $1 ORDER BY date ASC`, city)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

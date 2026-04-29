@@ -1,5 +1,5 @@
 -- PULSE — Seed data for demo
--- 20 fake London events across 5 categories
+-- 20 London events + 20 Paris events across 5 categories
 
 CREATE TABLE IF NOT EXISTS users (
   id VARCHAR(64) PRIMARY KEY,
@@ -82,3 +82,38 @@ INSERT INTO events (id, title, description, category, venue, address, city, date
 ('evt_018', 'Kubernetes & Cloud Native Summit', 'Full-day conference on K8s, GitOps, and platform engineering. 20+ talks from industry experts.', 'tech', 'ExCeL London', 'Royal Victoria Dock, London E16 1XL', 'London', NOW() + INTERVAL '9 days', 149.00, ARRAY['kubernetes', 'devops', 'conference']),
 ('evt_019', 'Startup Pitch Night', 'Ten early-stage startups pitch to a panel of London VCs. Networking drinks included.', 'tech', 'Level39', 'One Canada Square, Canary Wharf, London E14 5AB', 'London', NOW() + INTERVAL '3 days', 0.00, ARRAY['startup', 'vc', 'networking', 'free']),
 ('evt_020', 'Observability & SRE Workshop', 'Hands-on full-day workshop covering distributed tracing, alerting, and incident response.', 'tech', 'Skills Matter', '10 South Place, London EC2M 7EB', 'London', NOW() + INTERVAL '7 days', 199.00, ARRAY['observability', 'sre', 'workshop', 'devops']);
+
+-- Paris Events: Music (4)
+INSERT INTO events (id, title, description, category, venue, address, city, date, price_gbp, tags) VALUES
+('evt_p001', 'Jazz au Duc des Lombards', 'An intimate evening of bebop and modern jazz at Paris''s most celebrated jazz club. Featuring the Émile Renard Trio.', 'music', 'Duc des Lombards', '42 Rue des Lombards, 75001 Paris', 'Paris', NOW() + INTERVAL '2 days', 28.00, ARRAY['jazz', 'live music', 'evening']),
+('evt_p002', 'Electronic Night at Rex Club', 'Paris''s legendary underground techno club hosts an all-night session with Berlin and Paris headliners.', 'music', 'Rex Club', '5 Boulevard Poissonnière, 75002 Paris', 'Paris', NOW() + INTERVAL '4 days', 22.00, ARRAY['electronic', 'techno', 'late night']),
+('evt_p003', 'Philharmonie de Paris: Debussy', 'The Orchestre de Paris performs Debussy''s La Mer and Ravel''s Boléro. A defining night of French classical music.', 'music', 'Philharmonie de Paris', '221 Avenue Jean Jaurès, 75019 Paris', 'Paris', NOW() + INTERVAL '6 days', 55.00, ARRAY['classical', 'orchestra', 'evening']),
+('evt_p004', 'Nuit de la Chanson Française', 'A tribute evening celebrating the great chansonniers — Brel, Piaf, Gainsbourg — performed by today''s finest voices.', 'music', 'La Cigale', '120 Boulevard de Rochechouart, 75018 Paris', 'Paris', NOW() + INTERVAL '8 days', 32.00, ARRAY['chanson', 'french music', 'evening']);
+
+-- Paris Events: Food (4)
+INSERT INTO events (id, title, description, category, venue, address, city, date, price_gbp, tags) VALUES
+('evt_p005', 'Marché des Enfants Rouges', 'Explore Paris''s oldest covered market. Fresh produce, Moroccan street food, Italian antipasti, and the best crêpes in the Marais.', 'food', 'Marché des Enfants Rouges', '39 Rue de Bretagne, 75003 Paris', 'Paris', NOW() + INTERVAL '1 day', 0.00, ARRAY['market', 'street food', 'free']),
+('evt_p006', 'Fromage & Vin en Saint-Germain', 'A guided tasting of 12 artisan French cheeses paired with natural wines from the Loire and Burgundy. Expert sommelier led.', 'food', 'Fromagerie Laurent Dubois', '2 Rue de Lourmel, 75015 Paris', 'Paris', NOW() + INTERVAL '5 days', 48.00, ARRAY['cheese', 'wine', 'tasting', 'evening']),
+('evt_p007', 'Viennoiserie Masterclass', 'Learn the art of croissant and pain au chocolat from a Meilleur Ouvrier de France pastry chef. Includes breakfast.', 'food', 'École Ferrandi Paris', '28 Rue de l''Abbé Grégoire, 75006 Paris', 'Paris', NOW() + INTERVAL '3 days', 110.00, ARRAY['pastry', 'cooking class', 'morning']),
+('evt_p008', 'Fête de la Gastronomie', 'The annual celebration of French cuisine returns to the Seine banks. Chef demos, tastings, and pop-ups from 3-star restaurants.', 'food', 'Quai Branly', 'Quai Branly, 75007 Paris', 'Paris', NOW() + INTERVAL '9 days', 0.00, ARRAY['festival', 'food', 'free', 'family friendly']);
+
+-- Paris Events: Art (4)
+INSERT INTO events (id, title, description, category, venue, address, city, date, price_gbp, tags) VALUES
+('evt_p009', 'Louvre: Nocturne Impressionnisme', 'The Louvre opens late for a guided tour of its Impressionist collection. Champagne reception included.', 'art', 'Musée du Louvre', 'Rue de Rivoli, 75001 Paris', 'Paris', NOW() + INTERVAL '3 days', 38.00, ARRAY['exhibition', 'impressionism', 'evening']),
+('evt_p010', 'Promenade des Galeries — Montmartre', 'A self-guided evening walk through Montmartre''s hidden ateliers and galleries. Meet the artists behind the work.', 'art', 'Various Venues', 'Montmartre, 75018 Paris', 'Paris', NOW() + INTERVAL '2 days', 0.00, ARRAY['galleries', 'free', 'montmartre']),
+('evt_p011', 'Street Art Tour Belleville', 'Expert-guided 3-hour walk through Belleville''s world-famous street art scene. From Shepard Fairey to local legends.', 'art', 'Parc de Belleville', '47 Rue des Couronnes, 75020 Paris', 'Paris', NOW() + INTERVAL '7 days', 20.00, ARRAY['street art', 'tour', 'outdoor']),
+('evt_p012', 'Centre Pompidou: Art & IA', 'A landmark exhibition at the Pompidou exploring how artificial intelligence is reshaping contemporary art practice.', 'art', 'Centre Pompidou', 'Place Georges-Pompidou, 75004 Paris', 'Paris', NOW() + INTERVAL '1 day', 18.00, ARRAY['ai', 'contemporary', 'exhibition']);
+
+-- Paris Events: Sport (4)
+INSERT INTO events (id, title, description, category, venue, address, city, date, price_gbp, tags) VALUES
+('evt_p013', 'PSG vs Olympique de Marseille', 'Le Classique returns to the Parc des Princes. The biggest rivalry in French football.', 'sport', 'Parc des Princes', '24 Rue du Commandant Guilbaud, 75016 Paris', 'Paris', NOW() + INTERVAL '5 days', 72.00, ARRAY['football', 'ligue 1', 'classique']),
+('evt_p014', 'Course de la Seine — 10K', 'Community 10K run along the banks of the Seine from Pont de l''Alma to Pont de Bir-Hakeim. All levels welcome.', 'sport', 'Pont de l''Alma', 'Pont de l''Alma, 75008 Paris', 'Paris', NOW() + INTERVAL '3 days', 0.00, ARRAY['running', 'community', 'free']),
+('evt_p015', 'Yoga aux Tuileries', 'Morning yoga in the Tuileries Garden with certified instructor Marie Leclerc. Mats provided, all levels welcome.', 'sport', 'Jardin des Tuileries', 'Place de la Concorde, 75001 Paris', 'Paris', NOW() + INTERVAL '1 day', 14.00, ARRAY['yoga', 'outdoor', 'morning']),
+('evt_p016', 'Cyclisme — Tour du Bois de Vincennes', 'Guided cycling tour around the Bois de Vincennes with the Paris Cycling Club. 25km, bikes available to hire.', 'sport', 'Bois de Vincennes', 'Bois de Vincennes, 75012 Paris', 'Paris', NOW() + INTERVAL '4 days', 15.00, ARRAY['cycling', 'outdoor', 'weekend']);
+
+-- Paris Events: Tech (4)
+INSERT INTO events (id, title, description, category, venue, address, city, date, price_gbp, tags) VALUES
+('evt_p017', 'Paris AI Meetup — Station F', 'Monthly gathering of Paris''s AI community at Europe''s largest startup campus. Demos, talks, and networking.', 'tech', 'Station F', '5 Parvis Alan Turing, 75013 Paris', 'Paris', NOW() + INTERVAL '6 days', 0.00, ARRAY['ai', 'meetup', 'networking', 'free']),
+('evt_p018', 'VivaTech 2026 — Day Pass', 'Europe''s largest startup and tech conference returns to Porte de Versailles. 100,000 attendees, 450+ startups.', 'tech', 'Paris Expo Porte de Versailles', 'Place de la Porte de Versailles, 75015 Paris', 'Paris', NOW() + INTERVAL '10 days', 180.00, ARRAY['conference', 'startup', 'innovation']),
+('evt_p019', 'French Tech Pitch Night', 'Eight deep-tech startups pitch to a panel of French and European VCs. Drinks and networking follow.', 'tech', 'BPI France', '6-8 Boulevard Haussmann, 75009 Paris', 'Paris', NOW() + INTERVAL '4 days', 0.00, ARRAY['startup', 'pitch', 'networking', 'free']),
+('evt_p020', 'Kubernetes & Platform Engineering Paris', 'Full-day summit on cloud-native architecture, GitOps, and platform engineering best practices. Hosted by CNCF France.', 'tech', 'Palais des Congrès', '2 Place de la Porte Maillot, 75017 Paris', 'Paris', NOW() + INTERVAL '8 days', 160.00, ARRAY['kubernetes', 'devops', 'platform engineering', 'conference']);

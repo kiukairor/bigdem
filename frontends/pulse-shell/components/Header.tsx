@@ -2,7 +2,14 @@
 import { useState, useEffect } from 'react'
 import styles from './Header.module.css'
 
-export default function Header() {
+const CITIES = ['London', 'Paris']
+
+interface HeaderProps {
+  city: string
+  onCityChange: (city: string) => void
+}
+
+export default function Header({ city, onCityChange }: HeaderProps) {
   const [aiEnabled, setAiEnabled] = useState(true)
 
   useEffect(() => {
@@ -16,12 +23,20 @@ export default function Header() {
     <header className={styles.header}>
       <div className={styles.logo}>
         <span className={styles.logoText}>PULSE</span>
-        <span className={styles.logoCity}>LONDON</span>
+        <div className={styles.cityPicker}>
+          {CITIES.map(c => (
+            <button
+              key={c}
+              className={`${styles.cityBtn} ${city === c ? styles.cityActive : ''}`}
+              onClick={() => onCityChange(c)}
+            >
+              {c.toUpperCase()}
+            </button>
+          ))}
+        </div>
       </div>
       <div className={styles.aiStatus}>
-        <span
-          className={`${styles.aiDot} ${aiEnabled ? styles.aiOn : styles.aiOff}`}
-        />
+        <span className={`${styles.aiDot} ${aiEnabled ? styles.aiOn : styles.aiOff}`} />
         <span className={styles.aiLabel}>
           {aiEnabled ? 'AI Enhanced' : 'Classic Mode'}
         </span>

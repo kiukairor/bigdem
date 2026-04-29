@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import dynamic from 'next/dynamic'
 import Header from '../components/Header'
 
@@ -23,11 +24,13 @@ function FeedFallback() {
 }
 
 export default function Home() {
+  const [city, setCity] = useState('London')
+
   return (
     <div>
-      <Header />
+      <Header city={city} onCityChange={setCity} />
       <main>
-        <FeedApp />
+        <FeedApp city={city} />
       </main>
     </div>
   )

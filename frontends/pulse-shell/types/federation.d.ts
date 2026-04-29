@@ -1,5 +1,6 @@
 declare module 'feed/FeedApp' {
-  const FeedApp: React.ComponentType
+  interface FeedAppProps { city?: string }
+  const FeedApp: React.ComponentType<FeedAppProps>
   export default FeedApp
 }
 

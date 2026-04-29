@@ -25,13 +25,29 @@
   line-height: 1;
 }
 
-.logoCity {
-  font-family: var(--font-body);
-  font-size: 0.7rem;
-  font-weight: 500;
-  letter-spacing: 0.3em;
+.cityPicker {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+  margin-left: 0.25rem;
+}
+
+.cityBtn {
+  background: none;
+  border: 1px solid transparent;
   color: var(--text-dim);
-  text-transform: uppercase;
+  font-family: var(--font-body);
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  padding: 0.2rem 0.55rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.cityBtn:hover { color: var(--text); border-color: var(--border); }
+.cityActive {
+  color: var(--accent) !important;
+  border-color: var(--accent) !important;
 }
 
 .aiStatus {

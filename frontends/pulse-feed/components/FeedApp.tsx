@@ -12,14 +12,18 @@ const CATEGORY_ICONS: Record<string, string> = {
   music: '♫',
   food: '🍽',
   art: '🎨',
-  sport: '⚡',
+  sport: '🏃',
   tech: '💻',
 }
 
 const EVENT_SVC = process.env.NEXT_PUBLIC_EVENT_SVC_URL || 'http://localhost:8080'
 const AI_SVC = process.env.NEXT_PUBLIC_AI_SVC_URL || 'http://localhost:8082'
 
-export default function FeedApp() {
+interface FeedAppProps {
+  city?: string
+}
+
+export default function FeedApp({ city = 'London' }: FeedAppProps) {
   const [events, setEvents] = useState([])
   const [recommendations, setRecommendations] = useState([])
   const [savedIds, setSavedIds] = useState<string[]>([])
@@ -31,8 +35,11 @@ export default function FeedApp() {
   const [user, setUser] = useState<any>(null)
 
   useEffect(() => {
+    setLoading(true)
+    setEvents([])
+    setRecommendations([])
     Promise.all([
-      fetch(`${EVENT_SVC}/events`).then(r => r.json()),
+      fetch(`${EVENT_SVC}/events?city=${encodeURIComponent(city)}`).then(r => r.json()),
       fetch(`${EVENT_SVC}/user`).then(r => r.json()),
     ]).then(([evts, usr]) => {
       setEvents(evts)
@@ -41,7 +48,7 @@ export default function FeedApp() {
       setLoading(false)
       if (usr.ai_enabled) fetchRecommendations(evts, usr)
     }).catch(() => setLoading(false))
-  }, [])
+  }, [city])
 
   const fetchRecommendations = async (allEvents: any[], usr: any) => {
     setRecsLoading(true)
@@ -54,6 +61,7 @@ export default function FeedApp() {
           user_preferences: usr.preferences,
           saved_event_ids: savedIds,
           available_events: allEvents,
+          city,
         }),
       })
       if (!res.ok) throw new Error(`ai-svc ${res.status}`)
