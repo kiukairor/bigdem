@@ -22,11 +22,11 @@ The only modification to `fabric-gw-ds.yaml` relative to the upstream repo:
 
 | Hostname | Backend | Port |
 |---|---|---|
-| `pulse.local` | pulse-shell | 3000 |
-| `feed.pulse.local` | pulse-feed | 3001 |
-| `event.pulse.local` | event-svc | 8080 |
-| `ai.pulse.local` | ai-svc | 8082 |
-| `session.pulse.local` | session-svc | 8081 |
+| `pulse.test` | pulse-shell | 3000 |
+| `feed.pulse.test` | pulse-feed | 3001 |
+| `event.pulse.test` | event-svc | 8080 |
+| `ai.pulse.test` | ai-svc | 8082 |
+| `session.pulse.test` | session-svc | 8081 |
 
 Both HTTP (30080) and HTTPS (30443) listeners are active. TLS terminates at the gateway.
 
@@ -49,7 +49,7 @@ The script applies in order:
 ## /etc/hosts (local machine)
 
 ```
-<PI_IP>  pulse.local feed.pulse.local event.pulse.local ai.pulse.local session.pulse.local
+<PI_IP>  pulse.test feed.pulse.test event.pulse.test ai.pulse.test session.pulse.test
 ```
 
 Replace `<PI_IP>` with the Pi's IP. The script prints it for you.
@@ -70,7 +70,7 @@ Expected gateway pod state: `2/2 Running` (init container exits, then gateway + 
 bash infra/gateway/scripts/gen-tls.sh
 ```
 
-The cert covers `pulse.local` and `*.pulse.local` (wildcard). Browsers will show an untrusted cert warning — accept it, or install `infra/gateway/tls/tls.crt` into your local trust store.
+The cert covers `pulse.test` and `*.pulse.test` (wildcard). Browsers will show an untrusted cert warning — accept it, or install `infra/gateway/tls/tls.crt` into your local trust store.
 
 ## Revert
 

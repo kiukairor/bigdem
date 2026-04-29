@@ -3,14 +3,14 @@
 # in the nginx-gateway namespace (allowed via listener allowedRoutes.namespaces.from: All).
 #
 # Host-based routing:
-#   pulse.local             → pulse-shell:3000  (app shell)
-#   feed.pulse.local        → pulse-feed:3001   (MFE remote)
-#   event.pulse.local       → event-svc:8080    (events API)
-#   ai.pulse.local          → ai-svc:8082       (AI recommendations API)
-#   session.pulse.local     → session-svc:8081  (session API)
+#   pulse.test             → pulse-shell:3000  (app shell)
+#   feed.pulse.test        → pulse-feed:3001   (MFE remote)
+#   event.pulse.test       → event-svc:8080    (events API)
+#   ai.pulse.test          → ai-svc:8082       (AI recommendations API)
+#   session.pulse.test     → session-svc:8081  (session API)
 #
 # /etc/hosts on your local machine:
-#   <PI_IP>  pulse.local feed.pulse.local event.pulse.local ai.pulse.local session.pulse.local
+#   <PI_IP>  pulse.test feed.pulse.test event.pulse.test ai.pulse.test session.pulse.test
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -26,7 +26,7 @@ spec:
     namespace: nginx-gateway
     sectionName: http
   hostnames:
-  - "pulse.local"
+  - "pulse.test"
   rules:
   - matches:
     - path:
@@ -50,7 +50,7 @@ spec:
     namespace: nginx-gateway
     sectionName: http
   hostnames:
-  - "feed.pulse.local"
+  - "feed.pulse.test"
   rules:
   - matches:
     - path:
@@ -74,7 +74,7 @@ spec:
     namespace: nginx-gateway
     sectionName: http
   hostnames:
-  - "event.pulse.local"
+  - "event.pulse.test"
   rules:
   - matches:
     - path:
@@ -98,7 +98,7 @@ spec:
     namespace: nginx-gateway
     sectionName: http
   hostnames:
-  - "ai.pulse.local"
+  - "ai.pulse.test"
   rules:
   - matches:
     - path:
@@ -122,7 +122,7 @@ spec:
     namespace: nginx-gateway
     sectionName: http
   hostnames:
-  - "session.pulse.local"
+  - "session.pulse.test"
   rules:
   - matches:
     - path:

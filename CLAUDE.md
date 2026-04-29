@@ -133,7 +133,7 @@ Config via env: `CB_FAILURE_THRESHOLD`, `CB_RECOVERY_TIMEOUT_SECONDS`
 - **GitOps**: ArgoCD v3.3.2, namespace `pulse-prod`
 - **CI**: GitHub Actions, builds `linux/arm64` Docker images, pushes to GHCR
 - **Gateway**: NGINX Gateway Fabric v1.6.1 + K8s Gateway API v1.3.0, namespace `nginx-gateway`
-  - NodePort 30080 (HTTP) and 30443 (HTTPS), self-signed TLS for `*.pulse.local`
+  - NodePort 30080 (HTTP) and 30443 (HTTPS), self-signed TLS for `*.pulse.test`
   - Apply: `./scripts/apply-gateway.sh` (idempotent)
   - See: `infra/gateway/README.md`
 - **Helm**: one chart per service in `infra/helm/`
