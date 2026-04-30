@@ -1,7 +1,9 @@
 'use client'
 import { useState, useEffect } from 'react'
 import EventCard from './EventCard'
+import EventDetailModal from './EventDetailModal'
 import RecommendationPanel from './RecommendationPanel'
+import SavedPanel from './SavedPanel'
 import AIToggle from './AIToggle'
 import styles from './FeedApp.module.css'
 import { initNRMicroAgent } from '../lib/nr-micro-agent'
@@ -37,6 +39,7 @@ export default function FeedApp({ city = 'London' }: FeedAppProps) {
   const [loading, setLoading] = useState(true)
   const [recsLoading, setRecsLoading] = useState(false)
   const [user, setUser] = useState<any>(null)
+  const [selectedEvent, setSelectedEvent] = useState<any>(null)
 
   useEffect(() => { initNRMicroAgent() }, [])
 
@@ -180,6 +183,7 @@ export default function FeedApp({ city = 'London' }: FeedAppProps) {
               event={event}
               saved={savedIds.includes(event.id)}
               onSave={handleSave}
+              onOpen={setSelectedEvent}
             />
           ))}
         </div>
@@ -192,7 +196,22 @@ export default function FeedApp({ city = 'London' }: FeedAppProps) {
           mode={aiMode}
           aiEnabled={aiEnabled}
         />
+        <SavedPanel
+          events={events}
+          savedIds={savedIds}
+          onUnsave={handleSave}
+          onSelect={setSelectedEvent}
+        />
       </aside>
+
+      {selectedEvent && (
+        <EventDetailModal
+          event={selectedEvent}
+          saved={savedIds.includes(selectedEvent.id)}
+          onSave={(id: string) => { handleSave(id) }}
+          onClose={() => setSelectedEvent(null)}
+        />
+      )}
     </div>
   )
 }

@@ -16,7 +16,7 @@ const CATEGORY_ICONS: Record<string, string> = {
   tech: '💻',
 }
 
-export default function EventCard({ event, saved, onSave }: any) {
+export default function EventCard({ event, saved, onSave, onOpen }: any) {
   const color = CATEGORY_COLORS[event.category] || '#888'
   const date = new Date(event.date)
   const dateStr = date.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
@@ -24,7 +24,7 @@ export default function EventCard({ event, saved, onSave }: any) {
   const isFree = !event.price_gbp || event.price_gbp === 0
 
   return (
-    <div className={styles.card}>
+    <div className={styles.card} onClick={() => onOpen(event)}>
       <div className={styles.category} style={{ color, borderColor: color }}>
         {CATEGORY_ICONS[event.category]} {event.category.toUpperCase()}
       </div>
@@ -44,7 +44,7 @@ export default function EventCard({ event, saved, onSave }: any) {
         </span>
         <button
           className={`${styles.saveBtn} ${saved ? styles.saved : ''}`}
-          onClick={() => onSave(event.id)}
+          onClick={e => { e.stopPropagation(); onSave(event.id) }}
         >
           {saved ? '★ SAVED' : '☆ SAVE'}
         </button>

@@ -6,11 +6,11 @@
   flex-direction: column;
   gap: 0.75rem;
   transition: border-color 0.2s, transform 0.2s;
-  cursor: default;
+  cursor: pointer;
 }
 
 .card:hover {
-  border-color: #333;
+  border-color: #444;
   transform: translateY(-2px);
 }
 
