@@ -21,7 +21,7 @@ flowchart TB
 
         subgraph MFE["Module Federation remotes (JS loaded into browser)"]
             Feed["pulse-feed\nNext.js · :3001\nevents grid · AI panel · save"]
-            Profile["pulse-profile\nNext.js · :3002\n⬜ Week 2"]
+            Profile["pulse-profile\nNext.js · :3002\nsaved events · preferences"]
         end
 
         subgraph Backends["Backend services"]
@@ -39,7 +39,7 @@ flowchart TB
     Claude["Anthropic\nClaude API"]
 
     subgraph NR["New Relic"]
-        NRBrowser["Browser agent\n⬜ snippet pending"]
+        NRBrowser["Browser agent\n✅ SPA agent v1.313.1"]
         NREvent["APM: Go\npulse-event-svc"]
         NRAi["APM: Python\npulse-ai-svc"]
         NRSession["APM: Python\npulse-session-svc"]
@@ -150,19 +150,14 @@ The app is available at `https://pulse.test:30443`. Accept the self-signed cert 
 
 | Service | Agent | NR App Name | Status |
 |---|---|---|---|
-| pulse-shell | Browser (JS snippet) | pulse-shell | ⬜ snippet not yet added |
-| pulse-feed | Browser (JS snippet) | pulse-feed | ⬜ snippet not yet added |
+| pulse-shell | Browser (JS snippet) | pulse-shell | ✅ SPA agent in _document.tsx |
+| pulse-feed | Browser (JS snippet) | pulse-feed | ✅ MicroAgent in FeedApp.tsx |
 | event-svc | Go APM | pulse-event-svc | ✅ reporting |
 | ai-svc | Python APM | pulse-ai-svc | ✅ reporting |
 | session-svc | Python APM | pulse-session-svc | ✅ reporting |
 | K8s nodes | Infrastructure | — | ✅ reporting |
 
-**To add Browser monitoring:**
-1. In NR: Add data → Browser → create app named `pulse-shell`, copy snippet
-2. Paste into `frontends/pulse-shell/pages/_document.tsx` inside `<Head>`
-3. Repeat for `pulse-feed` (app name: `pulse-feed`)
-
-Once Browser snippets are in place, distributed traces will connect browser interactions to backend APM spans (browser fetch → event-svc Go spans → PostgreSQL queries).
+Browser agents inject NR account credentials from K8s env at runtime (pulse-shell via `getServerSideProps`, pulse-feed via `NEXT_PUBLIC_NR_*` baked at CI build time). Distributed traces connect browser interactions to backend APM spans.
 
 ---
 
