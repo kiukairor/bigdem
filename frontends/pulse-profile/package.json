@@ -8,7 +8,7 @@
     "start": "next start -H 0.0.0.0 -p 3002"
   },
   "dependencies": {
-    "@module-federation/nextjs-mf": "^8.4.0",
+    "@module-federation/nextjs-mf": "8.8.57",
     "next": "^14.2.35",
     "react": "^18",
     "react-dom": "^18"
@@ -17,6 +17,9 @@
     "@types/node": "^20",
     "@types/react": "^18",
     "typescript": "^5",
-    "webpack": "^5.105.4"
+    "webpack": "5.105.4"
+  },
+  "overrides": {
+    "enhanced-resolve": "5.20.0"
   }
 }
