@@ -66,7 +66,7 @@ versus/                          ← repo root (github.com/kiukairor/bigdem)
 |---------|--------|-------|
 | `pulse-shell` | ✅ Running | MFE host, city picker (London/Paris), single public entry point |
 | `pulse-feed` | ✅ Running | Events grid, category filter (sport icon = 🏃), AI panel |
-| `pulse-profile` | 🔄 CI Building | Code complete — saved events + prefs MFE; CI was failing (missing package-lock.json, now fixed) |
+| `pulse-profile` | 🔲 Week 2 | Code complete; CI building (package-lock.json fix); pod still ImagePullBackOff until image lands |
 | `event-svc` | ✅ Running | Go, city filter (?city=), 40 events (20 London + 20 Paris) |
 | `ai-svc` | ✅ Running | Python, circuit breaker CLOSED, city-aware recommendations |
 | `session-svc` | ✅ Running | Python/FastAPI, Redis + PG, NR instrumented |
@@ -213,7 +213,7 @@ Custom NR metrics: `Custom/AICircuitBreaker/State`, `Custom/AI/ResponseMs`, `Cus
 - Helm charts, ArgoCD apps, GitHub Actions CI
 - NGINX Gateway Fabric v1.6.1 + K8s GW API v1.3.0, NodePort :30080/:30443, self-signed TLS for *.pulse.test
 
-### ✅ Week 2 — COMPLETE
+### 🔄 Week 2 — IN PROGRESS
 - [x] session-svc: build real Python/FastAPI service
   - POST /sessions, GET /sessions/:id
   - POST /sessions/:id/saved-events, DELETE /sessions/:id/saved-events/:event_id
@@ -237,9 +237,9 @@ Custom NR metrics: `Custom/AICircuitBreaker/State`, `Custom/AI/ResponseMs`, `Cus
 - [x] event-svc: GET/POST/DELETE /user/saved-events, PUT /user/preferences
 - [x] ai-svc: Redis cache for recommendations (TTL 300s, key rec:{user_id}:{city})
 - [x] pulse-feed: save button wired to session-svc, session restored from localStorage
-- [x] Verify distributed tracing end-to-end: browser → shell proxy → event-svc → PostgreSQL (NR Browser SPA agent + nrpq datastore tracing confirmed)
-- [x] End-to-end smoke test: all backends healthy via gateway (event-svc/ai-svc/session-svc 200 OK, London+Paris events returning)
-- [x] pulse-profile CI: fixed missing package-lock.json (build was failing with npm ci error)
+- [ ] Verify distributed tracing end-to-end: open NR and confirm browser → shell → event-svc → PostgreSQL trace is visible
+- [ ] End-to-end UI smoke test: load https://pulse.test:30443 in browser, verify feed renders, events load, AI panel works, save button works
+- [x] pulse-profile CI: fixed missing package-lock.json (build was failing with npm ci error); CI building, pod still ImagePullBackOff
 
 ### 🔲 Week 3
 - [ ] Bug scenarios 1-3 as env flag toggles
