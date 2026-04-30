@@ -22,7 +22,7 @@ export default function Header({ city, onCityChange }: HeaderProps) {
   return (
     <header className={styles.header}>
       <div className={styles.logo}>
-        <span className={styles.logoText}>PULSE</span>
+        <a href="/" className={styles.logoText} style={{ textDecoration: 'none' }}>PULSE</a>
         <div className={styles.cityPicker}>
           {CITIES.map(c => (
             <button
