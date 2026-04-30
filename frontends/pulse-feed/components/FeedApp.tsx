@@ -114,15 +114,22 @@ export default function FeedApp({ city = 'London' }: FeedAppProps) {
     setSavedIds(prev => isSaved ? prev.filter(x => x !== id) : [...prev, id])
     if (!sessionId) return
     try {
-      if (isSaved) {
-        await fetch(`${SESSION_SVC}/sessions/${sessionId}/saved-events/${id}`, { method: 'DELETE' })
-      } else {
-        await fetch(`${SESSION_SVC}/sessions/${sessionId}/saved-events`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ event_id: id }),
-        })
-      }
+      const sessionCall = isSaved
+        ? fetch(`${SESSION_SVC}/sessions/${sessionId}/saved-events/${id}`, { method: 'DELETE' })
+        : fetch(`${SESSION_SVC}/sessions/${sessionId}/saved-events`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ event_id: id }),
+          })
+      const eventSvcCall = isSaved
+        ? fetch(`${EVENT_SVC}/user/saved-events/${id}`, { method: 'DELETE' })
+        : fetch(`${EVENT_SVC}/user/saved-events`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ event_id: id }),
+          })
+      const [sessionRes] = await Promise.all([sessionCall, eventSvcCall.catch(() => null)])
+      if (!sessionRes.ok) throw new Error('session-svc save failed')
     } catch {
       // revert on failure
       setSavedIds(prev => isSaved ? [...prev, id] : prev.filter(x => x !== id))
