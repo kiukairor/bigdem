@@ -124,6 +124,18 @@ export default function FeedApp({ city = 'London' }: FeedAppProps) {
 
   const handleSave = async (id: string) => {
     const isSaved = savedIds.includes(id)
+
+    // BUG_TECH_SAVE: saving a tech event crashes before the optimistic update fires.
+    // The TypeError (metadata.tags on undefined) is an unhandled promise rejection →
+    // NR Browser SPA agent captures it in JS Errors. Event never appears in My Events.
+    if (!isSaved) {
+      const evt = (events as any[]).find(e => e.id === id)
+      if (evt?.category === 'tech') {
+        const tags = (evt as any).metadata.tags   // metadata is undefined → TypeError
+        console.log('enriching save payload:', tags)
+      }
+    }
+
     setSavedIds(prev => isSaved ? prev.filter(x => x !== id) : [...prev, id])
     if (!sessionId) return
     try {

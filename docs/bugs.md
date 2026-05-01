@@ -14,8 +14,9 @@ One is activated live from the UI with no push required.
 | 2 | BUG_STALE_CACHE | Helm env + git push | event-svc | Logs in Context | ✅ Ready |
 | 3 | BUG_MEMORY_LEAK | Helm env + git push | session-svc | Infrastructure | ✅ Ready |
 | 4 | LIVE_REFRESH | UI toggle in feed | event-svc | APM Throughput + Browser AJAX | ✅ Ready |
+| 5 | BUG_TECH_SAVE | Always-on in UI (pulse-feed) | pulse-feed | NR Browser JS Errors | ✅ Ready |
 
-All bugs fire `BugScenarioEnabled` custom events to New Relic (except LIVE_REFRESH, which shows via auto-captured AJAX).
+All bugs fire `BugScenarioEnabled` custom events to New Relic (except LIVE_REFRESH and BUG_TECH_SAVE, which show via auto-captured Browser signals).
 
 ---
 
@@ -184,6 +185,43 @@ TIMESERIES 30 seconds SINCE 15 minutes ago
 
 ---
 
+---
+
+## Bug 5 — BUG_TECH_SAVE (always-on UI bug)
+
+**Story:** Users clicking "Save" on any Tech event see the button flash briefly then revert — the event never appears in My Events. No error banner, no console warning visible to the user. NR Browser JS Errors shows a `TypeError: Cannot read properties of undefined (reading 'tags')` spiking exactly when Tech events are interacted with.
+
+**What it does:** In `pulse-feed/components/FeedApp.tsx`, `handleSave` attempts to access `event.metadata.tags` before the optimistic UI update. `metadata` is not a field on any event object, so it throws a `TypeError`. Because `handleSave` is async and the caller does not `.catch()` the returned Promise, this becomes an **unhandled promise rejection** — captured automatically by the NR Browser SPA agent.
+
+**How to trigger:**
+1. Go to `https://pulse.test:30443`
+2. Filter by **💻 TECH** (or leave on All)
+3. Click **☆ SAVE** on any tech event
+4. The button flashes "★ SAVED" for a split second then reverts — the event is gone
+
+**This bug is always active** — no Helm flag, no git push needed. It is baked into the deployed `pulse-feed` image.
+
+**To deactivate (remove for production):** Delete the `BUG_TECH_SAVE` block in `FeedApp.tsx:handleSave` and push.
+
+**Observe in NR:**
+1. NR → Browser → **pulse-feed** → JS Errors
+2. Error: `TypeError: Cannot read properties of undefined (reading 'tags')`
+3. Source: `FeedApp.tsx`, inside `handleSave`
+4. Spike correlates exactly with Tech save attempts — no other category triggers it
+5. Session replay (if enabled): shows the button flash and revert in real-time
+
+**NR NRQL to paste live:**
+```sql
+SELECT count(*) FROM JavaScriptError
+WHERE appName = 'pulse-feed'
+  AND errorMessage LIKE '%Cannot read properties of undefined%'
+TIMESERIES 1 minute SINCE 30 minutes ago
+```
+
+**Demo talking point:** "There are no alerts firing. The service is healthy. But NR Browser is telling us users are hitting a JS crash every time they try to save a Tech event — silent data loss, zero backend signal."
+
+---
+
 ## Combining bugs for a full demo
 
 Suggested sequence for a 10-minute live demo:
@@ -191,11 +229,12 @@ Suggested sequence for a 10-minute live demo:
 | Time | Action | NR moment |
 |------|--------|-----------|
 | 0:00 | Show green baseline in NR | "Everything healthy" |
-| 0:30 | Enable Bug 4 (LIVE, from UI) | Throughput chart spikes live |
-| 1:30 | Enable Bug 3 (MEMORY_LEAK, git push) | Infrastructure memory trend |
-| 3:00 | Enable Bug 1 (AI_SLOW, git push) | Distributed Tracing 8s span |
-| 5:00 | Show Bug 2 (STALE_CACHE) | Logs in Context |
-| 7:00 | Recover all bugs one by one | Charts normalise live |
-| 9:00 | "Found and fixed in under 10 minutes with NR" | |
+| 0:30 | Click SAVE on a Tech event (Bug 5) | NR Browser JS Errors spike |
+| 1:30 | Enable Bug 4 (LIVE, from UI) | Throughput chart spikes live |
+| 2:30 | Enable Bug 3 (MEMORY_LEAK, git push) | Infrastructure memory trend |
+| 4:00 | Enable Bug 1 (AI_SLOW, git push) | Distributed Tracing 8s span |
+| 6:00 | Show Bug 2 (STALE_CACHE) | Logs in Context |
+| 8:00 | Recover all bugs one by one | Charts normalise live |
+| 9:30 | "Found and fixed in under 10 minutes with NR" | |
 
 Register a Change Tracker deployment marker before enabling each bug so every chart shows the exact moment of change.
