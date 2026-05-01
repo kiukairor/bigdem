@@ -23,7 +23,7 @@ metadata:
 apiVersion: v1
 kind: Secret
 metadata:
-  name: sjm-private-location-key
+  name: private-synthetics-location-key
   namespace: nr-synthetics
 type: Opaque
 stringData:
@@ -34,17 +34,17 @@ stringData:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: synthetics-job-manager
+  name: private-synthetics
   namespace: nr-synthetics
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: synthetics-job-manager
+      app: private-synthetics
   template:
     metadata:
       labels:
-        app: synthetics-job-manager
+        app: private-synthetics
     spec:
       # Inject pulse.test DNS — replace with your Pi's actual node IP
       hostAliases:
@@ -52,13 +52,13 @@ spec:
           hostnames:
             - "pulse.test"
       containers:
-        - name: synthetics-job-manager
-          image: newrelic/synthetics-job-manager:latest
+        - name: private-synthetics
+          image: newrelic/private-synthetics:latest
           env:
             - name: PRIVATE_LOCATION_KEY
               valueFrom:
                 secretKeyRef:
-                  name: sjm-private-location-key
+                  name: private-synthetics-location-key
                   key: key
             - name: SYNTHETICS_OFFLINE_STORAGE_RATIO
               value: "0.5"

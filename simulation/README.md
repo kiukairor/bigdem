@@ -78,7 +78,7 @@ kubectl get nodes -o wide | awk 'NR>1{print $6}'
 **Step 4** — Deploy:
 ```bash
 kubectl apply -f simulation/synthetics/sjm-deployment.yaml
-kubectl get pods -n nr-synthetics   # wait for Running
+kubectl get pods -n nr-synthetics   # wait for private-synthetics pod Running
 ```
 
 **Step 5** — Create monitors in NR console:  
