@@ -33,6 +33,31 @@ Re-read this before debugging CI, K8s, or dependency issues.
 
 ---
 
+### pulse-profile GHCR push 403 — package never initialised
+**Status:** ⚠ Blocked — awaiting manual fix  
+**Symptom:** Build succeeds (Next.js compiles, arm64 cross-compile works) but push to GHCR fails:  
+`403 Forbidden on HEAD request to ghcr.io/kiukairor/pulse-profile`  
+**Root cause:** The `pulse-profile` GHCR package has never been pushed before (self-hosted runner never ran). `GITHUB_TOKEN` with `packages: write` can push to existing packages but cannot always initialise a brand-new one.  
+**Fix (one-time manual step):**
+```bash
+# From any machine with Docker and your GHCR credentials
+echo $GITHUB_PAT | docker login ghcr.io -u kiukairor --password-stdin
+docker pull hello-world
+docker tag hello-world ghcr.io/kiukairor/pulse-profile:init
+docker push ghcr.io/kiukairor/pulse-profile:init
+```
+Then go to **github.com → Packages → pulse-profile → Package settings**:  
+- Set visibility to Public, OR link it to the `bigdem` repository  
+
+Then re-trigger the workflow:
+```bash
+gh workflow run pulse-profile.yml --repo kiukairor/bigdem
+```
+**Alternative fix:** GitHub Settings → Actions → General → Workflow permissions → set to "Read and write permissions" (blocks GHCR writes for new packages if set to read-only).  
+**Context:** The build step (cross-compile, enhanced-resolve, npm) is confirmed working as of run `25216472008` (sha `fcc6744`). This is purely a GHCR package initialisation issue, not a build issue.
+
+---
+
 ### pulse-profile package-lock.json out of sync
 **Status:** Fixed  
 **Symptom:** `npm ci` fails with "package-lock.json does not match package.json".  
