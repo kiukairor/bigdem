@@ -77,7 +77,6 @@ newrelic-admin run-program uvicorn main:app --host 0.0.0.0 --port 8081  # with N
 
 ## Be Careful Of
 
-- **Not yet connected to pulse-feed** — the frontend save button uses local React state. Wiring it to session-svc is a Week 2 backlog item
 - **Session TTL is hardcoded to 3600 seconds** (1 hour) in Redis — not configurable via env var
 - **Redis is a single client, not a connection pool** — fine for demo load but wouldn't scale
 - **`POST /sessions` loads all saved events from PostgreSQL** on creation — could be slow if a user has many saved events

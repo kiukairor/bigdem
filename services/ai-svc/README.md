@@ -80,5 +80,5 @@ newrelic-admin run-program uvicorn main:app --host 0.0.0.0 --port 8082  # with N
 - **Claude response parsing assumes valid JSON** — if Claude returns malformed output, the parse will fail and trigger the circuit breaker. There's no retry or repair logic
 - **`httpx` version pinned to `<0.28.0`** in requirements.txt — the Anthropic SDK breaks with httpx 0.28+. Don't upgrade httpx without testing
 - **Rule-based fallback is naive** — it just filters by matching categories and slices the first 3. No scoring or ranking
-- **No response caching yet** — every request hits Claude (or fallback). Redis caching per user is a Week 2 backlog item
+- **Redis cache is live** — recommendations are cached per `{user_id}:{city}` with a 300s TTL. A cache hit bypasses the Claude call entirely and is not reflected in the circuit breaker state
 - Docker builds must target **arm64** (Raspberry Pi cluster)

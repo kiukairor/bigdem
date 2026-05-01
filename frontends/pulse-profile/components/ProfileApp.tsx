@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import styles from './ProfileApp.module.css'
+import { initNRMicroAgent } from '../lib/nr-micro-agent'
 
 const EVENT_SVC   = process.env.NEXT_PUBLIC_EVENT_SVC_URL   || 'http://localhost:8080'
 const SESSION_SVC = process.env.NEXT_PUBLIC_SESSION_SVC_URL || 'http://localhost:8081'
@@ -22,6 +23,8 @@ export default function ProfileApp() {
   const [prefSaving, setPrefSaving] = useState(false)
   const [prefSaved, setPrefSaved] = useState(false)
   const [loading, setLoading] = useState(true)
+
+  useEffect(() => { initNRMicroAgent() }, [])
 
   useEffect(() => {
     const stored = localStorage.getItem('pulse_session_id')

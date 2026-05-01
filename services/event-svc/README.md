@@ -33,6 +33,10 @@ From a user's perspective, this is invisible — but it powers every event listi
 | `GET` | `/events/category/:category` | Events filtered by category |
 | `GET` | `/user` | Current user (uses `DEMO_USER_ID`) |
 | `PUT` | `/user/ai-preference` | Toggle AI on/off with optional reason |
+| `PUT` | `/user/preferences` | Save category preferences |
+| `GET` | `/user/saved-events` | Get saved event IDs for the demo user |
+| `POST` | `/user/saved-events` | Save an event (body: `{"event_id": "..."}`) |
+| `DELETE` | `/user/saved-events/:event_id` | Unsave an event |
 
 ### Key Files
 

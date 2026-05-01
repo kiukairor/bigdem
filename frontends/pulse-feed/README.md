@@ -28,8 +28,10 @@ From a user's perspective, this is where they spend most of their time: browsing
 
 ### Key Files
 
-- `components/FeedApp.tsx` — Main orchestrator: fetches events + user, manages AI toggle, renders grid + sidebar
+- `components/FeedApp.tsx` — Main orchestrator: fetches events + user, session restore, manages AI toggle, renders grid + sidebars
 - `components/EventCard.tsx` — Individual event card with category color coding and save button
+- `components/EventDetailModal.tsx` — Full event detail overlay on card click, with save/unsave
+- `components/SavedPanel.tsx` — Sidebar listing currently saved events (from React state)
 - `components/AIToggle.tsx` — Toggle button + reason survey modal on disable
 - `components/RecommendationPanel.tsx` — AI sidebar showing recommendations with mode indicator (AI / Cached / Rule-based)
 - `next.config.js` — Module Federation REMOTE config, exposes `./FeedApp`
@@ -50,8 +52,11 @@ npm run dev  # http://localhost:3001
 
 ## Be Careful Of
 
-- **Save button is local state only** — saved event IDs are tracked in React state, NOT persisted to session-svc yet (Week 2 backlog)
+- **Save button is wired to session-svc** — on save/unsave, FeedApp calls `POST/DELETE /sessions/:id/saved-events`. Session ID is persisted in `localStorage.pulse_session_id` and restored on load
+- **Event detail modal** (`EventDetailModal.tsx`) opens on card click — shows full event info and a save/unsave toggle. Requires the same session-svc wiring as the save button in EventCard
+- **Saved panel** (`SavedPanel.tsx`) shows the current session's saved events as a sidebar — populated from React state, no separate fetch
 - The `POST /recommendations` request sends the **full `available_events` array** to ai-svc — this can cause token explosion if the event list grows. ai-svc caps at 20 events on its side, but the network payload still includes everything
 - Category color mapping is hardcoded in `EventCard.tsx` — if you add new categories, add their colors there
 - The AI toggle sends the preference update but **doesn't await the response** — fire-and-forget
 - Recommendation panel shows 3 modes: "AI POWERED" (green), "CACHED" (orange), "RULE-BASED" (dim) — these map to the `mode` field in the ai-svc response
+- NR MicroAgent is initialised in `FeedApp.tsx` via `lib/nr-micro-agent.ts` — credentials are baked at CI build time via `NEXT_PUBLIC_NR_*` env vars

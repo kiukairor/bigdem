@@ -58,6 +58,10 @@ jobs:
           build-args: |
             NEXT_PUBLIC_EVENT_SVC_URL=https://pulse.test:30443/api/event-svc
             NEXT_PUBLIC_SESSION_SVC_URL=https://pulse.test:30443/api/session-svc
+            NEXT_PUBLIC_NR_BROWSER_LICENSE_KEY=NRJS-62af62d01efc06e84ee
+            NEXT_PUBLIC_NR_BROWSER_APP_ID=538847159
+            NEXT_PUBLIC_NR_BROWSER_ACCOUNT_ID=7697931
+            NEXT_PUBLIC_NR_BROWSER_TRUST_KEY=7697931
 
       - name: Rotate build cache
         run: |
