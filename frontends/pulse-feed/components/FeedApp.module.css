@@ -61,3 +61,30 @@
 }
 
 .sidebar { position: sticky; top: 73px; height: calc(100vh - 73px); overflow-y: auto; }
+
+.toolbarRight { display: flex; align-items: center; gap: 0.75rem; }
+
+.liveBtn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  padding: 0.3rem 0.7rem;
+  cursor: pointer;
+  font-family: var(--font-body);
+  transition: all 0.15s;
+}
+.liveBtn:hover { border-color: var(--red); color: var(--red); }
+
+.liveBtnActive {
+  border-color: var(--red);
+  color: var(--red);
+  animation: livePulse 1.2s ease-in-out infinite;
+}
+
+@keyframes livePulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}

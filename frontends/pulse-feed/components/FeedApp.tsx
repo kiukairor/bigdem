@@ -40,8 +40,21 @@ export default function FeedApp({ city = 'London' }: FeedAppProps) {
   const [recsLoading, setRecsLoading] = useState(false)
   const [user, setUser] = useState<any>(null)
   const [selectedEvent, setSelectedEvent] = useState<any>(null)
+  const [liveRefresh, setLiveRefresh] = useState(false)
 
   useEffect(() => { initNRMicroAgent() }, [])
+
+  // BUG_LIVE_REFRESH: poll event-svc every second — causes ~60 req/min vs baseline ~1 req/min
+  useEffect(() => {
+    if (!liveRefresh) return
+    const t = setInterval(() => {
+      fetch(`${EVENT_SVC}/events?city=${encodeURIComponent(city)}&_t=${Date.now()}`)
+        .then(r => r.json())
+        .then(evts => setEvents(evts))
+        .catch(() => {})
+    }, 1000)
+    return () => clearInterval(t)
+  }, [liveRefresh, city])
 
   // Create or restore session, load saved events
   useEffect(() => {
@@ -172,8 +185,23 @@ export default function FeedApp({ city = 'London' }: FeedAppProps) {
               </button>
             ))}
           </div>
-          <AIToggle enabled={aiEnabled} onToggle={handleAIToggle} />
+          <div className={styles.toolbarRight}>
+            <button
+              className={`${styles.liveBtn} ${liveRefresh ? styles.liveBtnActive : ''}`}
+              onClick={() => setLiveRefresh(v => !v)}
+              title="BUG: enables 1s polling of event-svc"
+            >
+              {liveRefresh ? '● LIVE' : '○ LIVE'}
+            </button>
+            <AIToggle enabled={aiEnabled} onToggle={handleAIToggle} />
+          </div>
         </div>
+
+        {liveRefresh && (
+          <div className={`${styles.modeBanner} ${styles.bannerRed}`}>
+            ● LIVE REFRESH ACTIVE — polling event-svc every 1s
+          </div>
+        )}
 
         {aiMode && aiMode !== 'ai' && (
           <div className={`${styles.modeBanner} ${aiMode === 'fallback' ? styles.bannerRed : styles.bannerYellow}`}>

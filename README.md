@@ -165,15 +165,36 @@ Browser agents inject NR account credentials from K8s env at runtime (pulse-shel
 
 Toggled via `infra/helm/<svc>/values.yaml` — no redeploy needed, just `git push`.
 
-| # | Env Flag | Bug | NR Feature shown |
-|---|---|---|---|
-| 1 | `BUG_AI_SLOW=true` | Claude API call delayed 8s | Distributed Tracing |
-| 2 | `BUG_STALE_CACHE=true` | Events show wrong dates silently | Logs in Context |
-| 3 | `BUG_MEMORY_LEAK=true` | session-svc accumulates connections | Infrastructure monitoring |
-| 4 | `BUG_TOKEN_FLOOD=true` | Full DB sent as Claude context per request | LLM Observability |
-| 5 | Scripted | ai-svc killed → retry storm → cascade | Service Maps + Alerts |
+| # | Env Flag | Service | Bug | NR Feature shown | Status |
+|---|---|---|---|---|---|
+| 1 | `BUG_AI_SLOW=true` | ai-svc | Claude call delayed 8s, cache bypassed | Distributed Tracing | ✅ Ready |
+| 2 | `BUG_STALE_CACHE=true` | event-svc | Events silently return dates 45 days in the past | Logs in Context | ✅ Ready |
+| 3 | `BUG_MEMORY_LEAK=true` | session-svc | Session payloads accumulate in memory, never freed | Infrastructure monitoring | ✅ Ready |
+| 4 | `BUG_TOKEN_FLOOD=true` | ai-svc | Full DB sent as Claude context every request | LLM Observability | 🔲 Week 4 |
+| 5 | Scripted | ai-svc | ai-svc killed → retry storm → cascade | Service Maps + Alerts | 🔲 Week 4 |
 
-See [docs/demo-script.md](docs/demo-script.md) for the full 15-minute walkthrough.
+### How to trigger a bug
+
+Each bug is a one-line edit in the relevant `values.yaml`, then a push:
+
+```bash
+# Bug 1 — AI slow (ai-svc)
+# Edit infra/helm/ai-svc/values.yaml: BUG_AI_SLOW: "true"
+git add infra/helm/ai-svc/values.yaml && git commit -m "demo: enable BUG_AI_SLOW" && git push
+
+# Bug 2 — Stale cache (event-svc)
+# Edit infra/helm/event-svc/values.yaml: BUG_STALE_CACHE: "true"
+git add infra/helm/event-svc/values.yaml && git commit -m "demo: enable BUG_STALE_CACHE" && git push
+
+# Bug 3 — Memory leak (session-svc)
+# Edit infra/helm/session-svc/values.yaml: BUG_MEMORY_LEAK: "true"
+git add infra/helm/session-svc/values.yaml && git commit -m "demo: enable BUG_MEMORY_LEAK" && git push
+```
+
+ArgoCD picks up the changed env var and restarts the pod in ~30s — no image rebuild required.
+Flip the value back to `"false"` and push to recover.
+
+Each active bug fires a `BugScenarioEnabled` custom event to New Relic.
 
 ---
 

@@ -66,7 +66,7 @@ versus/                          ← repo root (github.com/kiukairor/bigdem)
 |---------|--------|-------|
 | `pulse-shell` | ✅ Running | MFE host, city picker (London/Paris), single public entry point |
 | `pulse-feed` | ✅ Running | Events grid, category filter (sport icon = 🏃), AI panel |
-| `pulse-profile` | 🔲 Week 2 | Code complete; CI building (package-lock.json fix); pod still ImagePullBackOff until image lands |
+| `pulse-profile` | ✅ Running | Saved events list + preferences editor; enhanced-resolve pinned to 5.20.0 |
 | `event-svc` | ✅ Running | Go, city filter (?city=), 40 events (20 London + 20 Paris) |
 | `ai-svc` | ✅ Running | Python, circuit breaker CLOSED, city-aware recommendations |
 | `session-svc` | ✅ Running | Python/FastAPI, Redis + PG, NR instrumented |
@@ -239,10 +239,14 @@ Custom NR metrics: `Custom/AICircuitBreaker/State`, `Custom/AI/ResponseMs`, `Cus
 - [x] pulse-feed: save button wired to session-svc, session restored from localStorage
 - [ ] Verify distributed tracing end-to-end: open NR and confirm browser → shell → event-svc → PostgreSQL trace is visible
 - [ ] End-to-end UI smoke test: load https://pulse.test:30443 in browser, verify feed renders, events load, AI panel works, save button works
-- [x] pulse-profile CI: fixed missing package-lock.json (build was failing with npm ci error); CI building, pod still ImagePullBackOff
+- [x] pulse-profile CI: fixed package-lock.json (npm ci error) and pinned enhanced-resolve@5.20.0 (arm64 build failure); pod Running as of 2026-05-01
 
-### 🔲 Week 3
-- [ ] Bug scenarios 1-3 as env flag toggles
+### 🔄 Week 3 — IN PROGRESS
+- [x] Bug scenarios 1-3 as env flag toggles (BUG_AI_SLOW, BUG_STALE_CACHE, BUG_MEMORY_LEAK)
+  - BUG_AI_SLOW: 8s sleep in ai-svc before Claude call, cache bypassed so delay is always visible
+  - BUG_STALE_CACHE: event-svc shifts all event dates back 45 days silently
+  - BUG_MEMORY_LEAK: session-svc appends session payloads to a global list on every request, never freed
+  - Each bug fires `BugScenarioEnabled` custom event to NR; toggle is one line in infra/helm/<svc>/values.yaml + git push
 - [ ] NR dashboards: circuit breaker, opt-out rate, AI latency, token cost
 - [ ] NR alerts: error rate > 5%, p99 > 3s, memory > 80%
 - [ ] Simple auth: username + password (no email)
