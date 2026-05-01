@@ -6,78 +6,67 @@
 
 ## Architecture
 
-```mermaid
-flowchart TD
-    User(["👤 User\n(Browser)"])
+```
+╔══════════════════════════════════════════════════════════════════════╗
+║              Raspberry Pi  ·  Kubernetes  (pulse-prod)               ║
+║                                                                      ║
+║  ┌──────────────────────────────────────────────────────────────┐   ║
+║  │  NGINX Gateway Fabric v1.6.1  ·  NodePort :30443  (pulse.test)│◄──║── 👤 Browser
+║  └───────────────────────────┬──────────────────────────────────┘   ║
+║                              │                                       ║
+║  ┌───────────────────────────▼──────────────────────────────────┐   ║
+║  │            pulse-shell  :3000  (Next.js 14 · MFE host)       │   ║
+║  │         proxies all /_mfe/* and /api/* — single entry point   │   ║
+║  └────────────┬──────────────────────────────┬───────────────────┘   ║
+║               │  /_mfe/*                     │  /api/*               ║
+║  ┌────────────┴─────────────┐  ┌─────────────┴───────────────────┐  ║
+║  │       MFE remotes        │  │       backend services           │  ║
+║  │                          │  │                                  │  ║
+║  │  pulse-feed  :3001       │  │  event-svc  :8080                │  ║
+║  │  Next.js 14              │  │  Go + Gin                        │  ║
+║  │  events grid · AI panel  │  │  events · users · opt-out log    │  ║
+║  │  save button             │  │                                  │  ║
+║  │                          │  │  ai-svc  :8082                   │  ║
+║  │  pulse-profile  :3002    │  │  Python + FastAPI                │  ║
+║  │  Next.js 14              │  │  Claude recs · circuit breaker   │──║──► Anthropic
+║  │  saved events · prefs    │  │                                  │  ║    Claude API
+║  └──────────────────────────┘  │  session-svc  :8081              │  ║
+║                                │  Python + FastAPI                │  ║
+║                                │  sessions · saved events         │  ║
+║                                └──────────┬──────────────┬────────┘  ║
+║                                           │              │            ║
+║                             ┌─────────────▼──┐  ┌────────▼────────┐  ║
+║                             │  PostgreSQL     │  │  Redis          │  ║
+║                             │  events · users │  │  sessions       │  ║
+║                             │  saved · opt-out│  │  AI rec cache   │  ║
+║                             └─────────────────┘  └─────────────────┘  ║
+╚══════════════════════════════════════════════════════════════════════╝
 
-    subgraph External["External services"]
-        Claude["☁ Anthropic\nClaude API"]
-        NR["📊 New Relic\none.newrelic.com"]
-    end
+  Observability (New Relic · one.newrelic.com)
+  ┌───────────────────────────────────────────────────────────────────┐
+  │  pulse-shell  ── NR Browser SPA v1.313.1 (runtime env inject)    │
+  │  pulse-feed   ── NR MicroAgent           (baked at CI build)     │
+  │  event-svc    ── NR Go APM                                       │
+  │  ai-svc       ── NR Python APM                                   │
+  │  session-svc  ── NR Python APM                                   │
+  │  K8s nodes    ── NR Infrastructure agent (pods · CPU · memory)   │
+  └───────────────────────────────────────────────────────────────────┘
 
-    subgraph GitOps["CI / CD"]
-        GH["⑂ GitHub\nkiukairor/bigdem"]
-        GHA["GitHub Actions\nbuild linux/arm64\npush image · update tag"]
-        GHCR["📦 GHCR\ncontainer registry"]
-        Argo["ArgoCD v3.3.2\ndrift detection → deploy"]
-    end
-
-    subgraph Pi["Raspberry Pi — Kubernetes (namespace: pulse-prod)"]
-        GW["NGINX Gateway Fabric v1.6.1\nNodePort :30443 · TLS · pulse.test"]
-
-        subgraph FE["Frontends  ·  Next.js 14"]
-            Shell["pulse-shell :3000\nMFE host · city picker\nproxies all traffic"]
-            Feed["pulse-feed :3001\nevents grid · AI panel\nsave button  [MFE remote]"]
-            Profile["pulse-profile :3002\nsaved events · prefs\n[MFE remote]"]
-        end
-
-        subgraph BE["Backend services"]
-            EventSvc["event-svc :8080\nGo + Gin\nevents · user · opt-out log"]
-            AiSvc["ai-svc :8082\nPython + FastAPI\nClaude recs · circuit breaker"]
-            SessionSvc["session-svc :8081\nPython + FastAPI\nsessions · saved events"]
-        end
-
-        subgraph Data["Data layer"]
-            PG[("PostgreSQL\nevents · users\nsaved events\nopt-out log")]
-            Redis[("Redis\nsession cache\nAI rec cache")]
-        end
-    end
-
-    %% ── Request path ──────────────────────────────────────────
-    User -- "HTTPS :30443" --> GW
-    GW --> Shell
-    Shell -- "/_mfe/feed proxy" --> Feed
-    Shell -- "/_mfe/profile proxy" --> Profile
-    Shell -- "/api/event-svc proxy" --> EventSvc
-    Shell -- "/api/ai-svc proxy" --> AiSvc
-    Shell -- "/api/session-svc proxy" --> SessionSvc
-    EventSvc --> PG
-    SessionSvc --> PG
-    SessionSvc --> Redis
-    AiSvc -- "recommendations" --> Claude
-    AiSvc -. "rec cache TTL 300s" .-> Redis
-
-    %% ── GitOps path ───────────────────────────────────────────
-    GH -- "push → trigger CI" --> GHA
-    GHA -- "push image" --> GHCR
-    GHA -- "update values.yaml tag\n[skip ci] commit" --> GH
-    GHCR -- "pull on deploy" --> Argo
-    Argo -- "apply Helm charts" --> Pi
-
-    %% ── Observability ─────────────────────────────────────────
-    Shell -. "NR Browser SPA v1.313.1\n(injected server-side)" .-> NR
-    Feed -. "NR MicroAgent\n(baked at CI build)" .-> NR
-    EventSvc -. "NR Go APM" .-> NR
-    AiSvc -. "NR Python APM" .-> NR
-    SessionSvc -. "NR Python APM" .-> NR
-    Pi -. "NR Infrastructure\n(pods · CPU · RAM)" .-> NR
+  CI / CD
+  ┌───────────────────────────────────────────────────────────────────┐
+  │                                                                   │
+  │  GitHub  ──push──►  GitHub Actions  ──image──►  GHCR             │
+  │    ▲                  (linux/arm64)               │               │
+  │    └── update values.yaml tag  ◄──────────────────┘               │
+  │         [skip ci] commit            ArgoCD  ──detect drift──►  K8s│
+  └───────────────────────────────────────────────────────────────────┘
 ```
 
 **Key design decisions:**
 
 - Only `pulse.test:30443` is exposed — backends and MFE remotes are cluster-internal.
 - pulse-shell proxies everything via Next.js `rewrites()`. The browser never leaves `pulse.test:30443`.
-- Module Federation: pulse-shell fetches MFE JS chunks from pulse-feed/pulse-profile server-side via proxy, then serves them to the browser. No direct browser-to-MFE traffic.
+- Module Federation: pulse-shell fetches MFE JS chunks from pulse-feed/pulse-profile via proxy, then serves them to the browser. No direct browser-to-MFE traffic.
 - NR Browser agent credentials are injected at runtime from K8s env in pulse-shell (`getServerSideProps`), but baked into the Docker image at CI build time for pulse-feed/pulse-profile (Next.js `NEXT_PUBLIC_*` constraint).
 
 ---
