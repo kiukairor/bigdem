@@ -38,6 +38,8 @@ type User struct {
 }
 
 var db *sql.DB
+var nrApp *newrelic.Application
+var bugStaleCache = os.Getenv("BUG_STALE_CACHE") == "true"
 
 func main() {
 	// New Relic
@@ -50,6 +52,7 @@ func main() {
 	if err != nil {
 		log.Printf("WARN: New Relic not configured: %v", err)
 	}
+	nrApp = app
 
 	// Database
 	dsn := "host=" + getEnv("POSTGRES_HOST", "localhost") +
@@ -131,6 +134,21 @@ func getEventsHandler(c *gin.Context) {
 		}
 		events = append(events, e)
 	}
+
+	if bugStaleCache {
+		log.Printf(`{"level":"warn","bug":"BUG_STALE_CACHE","msg":"returning stale cached events, dates shifted -45 days","count":%d}`, len(events))
+		for i := range events {
+			events[i].Date = events[i].Date.Add(-45 * 24 * time.Hour)
+		}
+		if nrApp != nil {
+			nrApp.RecordCustomEvent("BugScenarioEnabled", map[string]interface{}{
+				"bug":          "BUG_STALE_CACHE",
+				"service":      "event-svc",
+				"events_count": len(events),
+			})
+		}
+	}
+
 	c.JSON(http.StatusOK, events)
 }
 

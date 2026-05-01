@@ -18,6 +18,8 @@ ingress:
 env:
   NEW_RELIC_APP_NAME: "pulse-session-svc"
   PORT: "8081"
+  # Bug scenario toggles — set to "true" to activate, "false" to deactivate
+  BUG_MEMORY_LEAK: "false"
 
 resources:
   requests:

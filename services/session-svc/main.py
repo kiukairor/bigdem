@@ -34,6 +34,8 @@ redis_client = redis.Redis(
 )
 
 SESSION_TTL = 3600  # 1 hour
+BUG_MEMORY_LEAK = os.getenv("BUG_MEMORY_LEAK", "false").lower() == "true"
+_leak_buffer: list = []  # accumulates when BUG_MEMORY_LEAK is active, never freed
 
 
 class CreateSessionRequest(BaseModel):
@@ -87,6 +89,15 @@ def create_session(req: CreateSessionRequest):
         "saved_event_count": len(saved_event_ids),
     })
 
+    if BUG_MEMORY_LEAK:
+        _leak_buffer.append({"session": session_data, "events": saved_event_ids * 100})
+        log.warning(f"BUG_MEMORY_LEAK active: buffer has {len(_leak_buffer)} entries")
+        newrelic.agent.record_custom_event("BugScenarioEnabled", {
+            "bug": "BUG_MEMORY_LEAK",
+            "service": "session-svc",
+            "leaked_entries": len(_leak_buffer),
+        })
+
     log.info(f"Session created: {session_id} for user {req.user_id}")
     return session_data
 
@@ -99,6 +110,11 @@ def get_session(session_id: str):
         raise HTTPException(status_code=404, detail="Session not found")
 
     newrelic.agent.add_custom_attribute("session_id", session_id)
+
+    if BUG_MEMORY_LEAK:
+        _leak_buffer.append(json.loads(raw))
+        log.warning(f"BUG_MEMORY_LEAK active: buffer has {len(_leak_buffer)} entries")
+
     return json.loads(raw)
 
 

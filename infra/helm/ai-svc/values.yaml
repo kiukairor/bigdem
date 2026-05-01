@@ -21,6 +21,8 @@ env:
   DEMO_CITY: "London"
   CB_FAILURE_THRESHOLD: "5"
   CB_RECOVERY_TIMEOUT_SECONDS: "60"
+  # Bug scenario toggles — set to "true" to activate, "false" to deactivate
+  BUG_AI_SLOW: "false"
 
 resources:
   requests:

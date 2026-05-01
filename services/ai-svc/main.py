@@ -28,6 +28,7 @@ cb = CircuitBreaker(
 CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-20250514")
 DEMO_CITY = os.getenv("DEMO_CITY", "London")
 REC_CACHE_TTL = 300  # 5 minutes
+BUG_AI_SLOW = os.getenv("BUG_AI_SLOW", "false").lower() == "true"
 
 try:
     redis_client = redis_lib.Redis(
@@ -81,8 +82,8 @@ def get_recommendations(req: RecommendationRequest):
     newrelic.agent.add_custom_attribute("available_events_count", len(req.available_events))
     newrelic.agent.add_custom_attribute("circuit_breaker_state", cb.state)
 
-    # Cache check
-    if redis_client:
+    # Cache check — skipped when BUG_AI_SLOW is active so the delay is always observable
+    if redis_client and not BUG_AI_SLOW:
         try:
             cached = redis_client.get(cache_key)
             if cached:
@@ -152,7 +153,16 @@ def get_recommendations(req: RecommendationRequest):
 
 
 def call_claude(req: RecommendationRequest) -> list[dict]:
-    """Call Claude API to get personalised event recommendations."""
+    if BUG_AI_SLOW:
+        log.warning("BUG_AI_SLOW active: injecting 8s delay before Claude call")
+        newrelic.agent.add_custom_attribute("bug_ai_slow", True)
+        newrelic.agent.record_custom_event("BugScenarioEnabled", {
+            "bug": "BUG_AI_SLOW",
+            "service": "ai-svc",
+            "delay_ms": 8000,
+        })
+        time.sleep(8)
+
     prefs = req.user_preferences
     saved_ids = set(req.saved_event_ids)
 

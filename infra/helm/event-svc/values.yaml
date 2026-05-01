@@ -21,6 +21,8 @@ env:
   DEMO_CITY: "London"
   DEMO_USER_ID: "demo_user"
   DEMO_USER_NAME: "Demo User"
+  # Bug scenario toggles — set to "true" to activate, "false" to deactivate
+  BUG_STALE_CACHE: "false"
 
 resources:
   requests:
