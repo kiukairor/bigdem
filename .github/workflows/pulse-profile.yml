@@ -18,7 +18,7 @@ env:
 
 jobs:
   build:
-    runs-on: [self-hosted, linux, arm64]
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
@@ -50,11 +50,12 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: ./frontends/pulse-profile
+          platforms: linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=local,src=/tmp/.buildx-cache-profile
-          cache-to: type=local,dest=/tmp/.buildx-cache-profile-new,mode=max
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
           build-args: |
             NEXT_PUBLIC_EVENT_SVC_URL=https://pulse.test:30443/api/event-svc
             NEXT_PUBLIC_SESSION_SVC_URL=https://pulse.test:30443/api/session-svc
@@ -62,11 +63,6 @@ jobs:
             NEXT_PUBLIC_NR_BROWSER_APP_ID=538847159
             NEXT_PUBLIC_NR_BROWSER_ACCOUNT_ID=7697931
             NEXT_PUBLIC_NR_BROWSER_TRUST_KEY=7697931
-
-      - name: Rotate build cache
-        run: |
-          rm -rf /tmp/.buildx-cache-profile
-          mv /tmp/.buildx-cache-profile-new /tmp/.buildx-cache-profile
 
   update-image-tag:
     needs: build
