@@ -1,0 +1,77 @@
+# NR Synthetics Job Manager — private location for pulse.test
+#
+# Setup:
+#   1. Go to one.newrelic.com → Synthetics → Private Locations → Create
+#   2. Copy the private location key into the secret below
+#   3. kubectl apply -f simulation/synthetics/sjm-deployment.yaml
+#   4. Create monitors in NR console pointing at this private location
+#
+# The SJM pod runs inside the cluster so it can resolve pulse.test via
+# the gateway NodePort. The hostAliases entry injects the cluster node IP
+# as the pulse.test DNS entry — replace NODE_IP with the Pi's actual IP
+# (run: kubectl get nodes -o wide | awk 'NR>1{print $6}').
+#
+# NR docs: https://docs.newrelic.com/docs/synthetics/synthetic-monitoring/private-locations/install-job-manager/
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nr-synthetics
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: sjm-private-location-key
+  namespace: nr-synthetics
+type: Opaque
+stringData:
+  # Paste your private location key here (from NR console → Synthetics → Private Locations)
+  key: "PASTE_PRIVATE_LOCATION_KEY_HERE"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: synthetics-job-manager
+  namespace: nr-synthetics
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: synthetics-job-manager
+  template:
+    metadata:
+      labels:
+        app: synthetics-job-manager
+    spec:
+      # Inject pulse.test DNS — replace with your Pi's actual node IP
+      hostAliases:
+        - ip: "NODE_IP"
+          hostnames:
+            - "pulse.test"
+      containers:
+        - name: synthetics-job-manager
+          image: newrelic/synthetics-job-manager:latest
+          env:
+            - name: PRIVATE_LOCATION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: sjm-private-location-key
+                  key: key
+            - name: SYNTHETICS_OFFLINE_STORAGE_RATIO
+              value: "0.5"
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
