@@ -7,71 +7,78 @@
 ## Architecture
 
 ```mermaid
-flowchart TB
-    User(["Browser"])
+flowchart TD
+    User(["👤 User\n(Browser)"])
 
-    subgraph GW["NGINX Gateway Fabric — NodePort :30443"]
-        direction LR
-        HTTP["HTTP :30080"]
-        HTTPS["HTTPS :30443\npulse.test"]
+    subgraph External["External services"]
+        Claude["☁ Anthropic\nClaude API"]
+        NR["📊 New Relic\none.newrelic.com"]
     end
 
-    subgraph K8s["Kubernetes — namespace: pulse-prod"]
-        Shell["pulse-shell\nNext.js host MFE · :3000"]
+    subgraph GitOps["CI / CD"]
+        GH["⑂ GitHub\nkiukairor/bigdem"]
+        GHA["GitHub Actions\nbuild linux/arm64\npush image · update tag"]
+        GHCR["📦 GHCR\ncontainer registry"]
+        Argo["ArgoCD v3.3.2\ndrift detection → deploy"]
+    end
 
-        subgraph MFE["Module Federation remotes (JS loaded into browser)"]
-            Feed["pulse-feed\nNext.js · :3001\nevents grid · AI panel · save"]
-            Profile["pulse-profile\nNext.js · :3002\nsaved events · preferences"]
+    subgraph Pi["Raspberry Pi — Kubernetes (namespace: pulse-prod)"]
+        GW["NGINX Gateway Fabric v1.6.1\nNodePort :30443 · TLS · pulse.test"]
+
+        subgraph FE["Frontends  ·  Next.js 14"]
+            Shell["pulse-shell :3000\nMFE host · city picker\nproxies all traffic"]
+            Feed["pulse-feed :3001\nevents grid · AI panel\nsave button  [MFE remote]"]
+            Profile["pulse-profile :3002\nsaved events · prefs\n[MFE remote]"]
         end
 
-        subgraph Backends["Backend services"]
-            EventSvc["event-svc\nGo + Gin · :8080\nevents · user prefs · opt-out log"]
-            AiSvc["ai-svc\nPython + FastAPI · :8082\nClaude recs · circuit breaker"]
-            SessionSvc["session-svc\nPython + FastAPI · :8081\nsessions · saved events"]
+        subgraph BE["Backend services"]
+            EventSvc["event-svc :8080\nGo + Gin\nevents · user · opt-out log"]
+            AiSvc["ai-svc :8082\nPython + FastAPI\nClaude recs · circuit breaker"]
+            SessionSvc["session-svc :8081\nPython + FastAPI\nsessions · saved events"]
         end
 
         subgraph Data["Data layer"]
-            PG[("PostgreSQL\nevents · users\nopt-out log · saved events")]
+            PG[("PostgreSQL\nevents · users\nsaved events\nopt-out log")]
             Redis[("Redis\nsession cache\nAI rec cache")]
         end
     end
 
-    Claude["Anthropic\nClaude API"]
-
-    subgraph NR["New Relic"]
-        NRBrowser["Browser agent\n✅ SPA agent v1.313.1"]
-        NREvent["APM: Go\npulse-event-svc"]
-        NRAi["APM: Python\npulse-ai-svc"]
-        NRSession["APM: Python\npulse-session-svc"]
-    end
-
+    %% ── Request path ──────────────────────────────────────────
     User -- "HTTPS :30443" --> GW
-    GW -- "pulse.test" --> Shell
-
-    Shell -- "/_mfe/feed/* proxy" --> Feed
-    Shell -- "/_mfe/profile/* proxy" --> Profile
-    Shell -- "/api/event-svc/* proxy" --> EventSvc
-    Shell -- "/api/ai-svc/* proxy" --> AiSvc
-    Shell -- "/api/session-svc/* proxy" --> SessionSvc
-
+    GW --> Shell
+    Shell -- "/_mfe/feed proxy" --> Feed
+    Shell -- "/_mfe/profile proxy" --> Profile
+    Shell -- "/api/event-svc proxy" --> EventSvc
+    Shell -- "/api/ai-svc proxy" --> AiSvc
+    Shell -- "/api/session-svc proxy" --> SessionSvc
     EventSvc --> PG
     SessionSvc --> PG
     SessionSvc --> Redis
-    AiSvc --> Claude
-    AiSvc -. "rec cache" .-> Redis
+    AiSvc -- "recommendations" --> Claude
+    AiSvc -. "rec cache TTL 300s" .-> Redis
 
-    User -. "distributed traces" .-> NRBrowser
-    EventSvc -. "" .-> NREvent
-    AiSvc -. "" .-> NRAi
-    SessionSvc -. "" .-> NRSession
+    %% ── GitOps path ───────────────────────────────────────────
+    GH -- "push → trigger CI" --> GHA
+    GHA -- "push image" --> GHCR
+    GHA -- "update values.yaml tag\n[skip ci] commit" --> GH
+    GHCR -- "pull on deploy" --> Argo
+    Argo -- "apply Helm charts" --> Pi
+
+    %% ── Observability ─────────────────────────────────────────
+    Shell -. "NR Browser SPA v1.313.1\n(injected server-side)" .-> NR
+    Feed -. "NR MicroAgent\n(baked at CI build)" .-> NR
+    EventSvc -. "NR Go APM" .-> NR
+    AiSvc -. "NR Python APM" .-> NR
+    SessionSvc -. "NR Python APM" .-> NR
+    Pi -. "NR Infrastructure\n(pods · CPU · RAM)" .-> NR
 ```
 
 **Key design decisions:**
 
-- Only `pulse.test` is exposed publicly — backends and MFEs are cluster-internal.
-- pulse-shell proxies all MFE asset fetches and API calls via Next.js `rewrites()`. The browser never leaves `pulse.test:30443`.
-- Module Federation loads MFE JavaScript into the browser — there is no server-to-server call between MFEs.
-- NR Browser snippets must be injected into `_document.tsx` for pulse-shell and pulse-feed to enable distributed tracing from browser to backends.
+- Only `pulse.test:30443` is exposed — backends and MFE remotes are cluster-internal.
+- pulse-shell proxies everything via Next.js `rewrites()`. The browser never leaves `pulse.test:30443`.
+- Module Federation: pulse-shell fetches MFE JS chunks from pulse-feed/pulse-profile server-side via proxy, then serves them to the browser. No direct browser-to-MFE traffic.
+- NR Browser agent credentials are injected at runtime from K8s env in pulse-shell (`getServerSideProps`), but baked into the Docker image at CI build time for pulse-feed/pulse-profile (Next.js `NEXT_PUBLIC_*` constraint).
 
 ---
 
@@ -163,38 +170,20 @@ Browser agents inject NR account credentials from K8s env at runtime (pulse-shel
 
 ## Demo Bug Scenarios
 
-Toggled via `infra/helm/<svc>/values.yaml` — no redeploy needed, just `git push`.
+See [`docs/bugs.md`](docs/bugs.md) for full activation instructions, NRQL, and demo talking points.
 
-| # | Env Flag | Service | Bug | NR Feature shown | Status |
+| # | Trigger | Service | Bug | NR Feature | Status |
 |---|---|---|---|---|---|
-| 1 | `BUG_AI_SLOW=true` | ai-svc | Claude call delayed 8s, cache bypassed | Distributed Tracing | ✅ Ready |
-| 2 | `BUG_STALE_CACHE=true` | event-svc | Events silently return dates 45 days in the past | Logs in Context | ✅ Ready |
-| 3 | `BUG_MEMORY_LEAK=true` | session-svc | Session payloads accumulate in memory, never freed | Infrastructure monitoring | ✅ Ready |
-| 4 | `BUG_TOKEN_FLOOD=true` | ai-svc | Full DB sent as Claude context every request | LLM Observability | 🔲 Week 4 |
-| 5 | Scripted | ai-svc | ai-svc killed → retry storm → cascade | Service Maps + Alerts | 🔲 Week 4 |
+| 1 | `BUG_AI_SLOW=true` in Helm + git push | ai-svc | Claude call delayed 8s, cache bypassed | Distributed Tracing | ✅ Ready |
+| 2 | `BUG_STALE_CACHE=true` in Helm + git push | event-svc | Events silently return dates 45 days in the past | Logs in Context | ✅ Ready |
+| 3 | `BUG_MEMORY_LEAK=true` in Helm + git push | session-svc | Session payloads accumulate in memory, never freed | Infrastructure | ✅ Ready |
+| 4 | Click **○ LIVE** in the feed UI | event-svc | 1s polling → throughput spike from ~1 to ~60 rpm | APM Throughput + Browser AJAX | ✅ Ready |
+| 5 | Click **☆ SAVE** on any Tech event | pulse-feed | TypeError crash — event silently not saved | Browser JS Errors | ✅ Ready |
+| 6 | `BUG_TOKEN_FLOOD=true` in Helm + git push | ai-svc | Full DB sent as Claude context every request | LLM Observability | 🔲 Week 4 |
+| 7 | Scripted | ai-svc | ai-svc killed → retry storm → cascade | Service Maps + Alerts | 🔲 Week 4 |
 
-### How to trigger a bug
-
-Each bug is a one-line edit in the relevant `values.yaml`, then a push:
-
-```bash
-# Bug 1 — AI slow (ai-svc)
-# Edit infra/helm/ai-svc/values.yaml: BUG_AI_SLOW: "true"
-git add infra/helm/ai-svc/values.yaml && git commit -m "demo: enable BUG_AI_SLOW" && git push
-
-# Bug 2 — Stale cache (event-svc)
-# Edit infra/helm/event-svc/values.yaml: BUG_STALE_CACHE: "true"
-git add infra/helm/event-svc/values.yaml && git commit -m "demo: enable BUG_STALE_CACHE" && git push
-
-# Bug 3 — Memory leak (session-svc)
-# Edit infra/helm/session-svc/values.yaml: BUG_MEMORY_LEAK: "true"
-git add infra/helm/session-svc/values.yaml && git commit -m "demo: enable BUG_MEMORY_LEAK" && git push
-```
-
-ArgoCD picks up the changed env var and restarts the pod in ~30s — no image rebuild required.
-Flip the value back to `"false"` and push to recover.
-
-Each active bug fires a `BugScenarioEnabled` custom event to New Relic.
+Bugs 1–3: one-line edit in `infra/helm/<svc>/values.yaml` + `git push`. ArgoCD restarts the pod in ~30s, no image rebuild. Each fires a `BugScenarioEnabled` custom event to NR.  
+Bugs 4–5: always-on or UI-toggle, no deploy needed.
 
 ---
 
