@@ -2,8 +2,8 @@ replicaCount: 1
 
 image:
   repository: ghcr.io/kiukairor/pulse-profile
-  pullPolicy: IfNotPresent
-  tag: "latest"
+  pullPolicy: Always
+  tag: "sha-health"
 
 imagePullSecrets:
   - name: ghcr-secret
