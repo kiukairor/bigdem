@@ -54,7 +54,8 @@ Then re-trigger the workflow:
 gh workflow run pulse-profile.yml --repo kiukairor/bigdem
 ```
 **Alternative fix:** GitHub Settings → Actions → General → Workflow permissions → set to "Read and write permissions" (blocks GHCR writes for new packages if set to read-only).  
-**Context:** The build step (cross-compile, enhanced-resolve, npm) is confirmed working as of run `25216472008` (sha `fcc6744`). This is purely a GHCR package initialisation issue, not a build issue.
+**Context:** The build step (cross-compile, enhanced-resolve, npm) is confirmed working as of run `25216472008` (sha `fcc6744`). This is purely a GHCR package initialisation issue, not a build issue.  
+**IMPORTANT — do NOT initialise with a PAT:** Pushing a dummy image with a personal PAT creates the package linked to the user account, not the repository. `GITHUB_TOKEN` then gets 403 because it can only write to packages linked to the current repo. If this happens again: delete the package via `gh api --method DELETE /user/packages/container/pulse-profile` then let CI recreate it from scratch.
 
 ---
 
