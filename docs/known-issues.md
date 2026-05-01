@@ -34,7 +34,7 @@ Re-read this before debugging CI, K8s, or dependency issues.
 ---
 
 ### pulse-profile GHCR push 403 — package never initialised
-**Status:** ⚠ Blocked — awaiting manual fix  
+**Status:** Fixed (resolved 2026-05-01)  
 **Symptom:** Build succeeds (Next.js compiles, arm64 cross-compile works) but push to GHCR fails:  
 `403 Forbidden on HEAD request to ghcr.io/kiukairor/pulse-profile`  
 **Root cause:** The `pulse-profile` GHCR package has never been pushed before (self-hosted runner never ran). `GITHUB_TOKEN` with `packages: write` can push to existing packages but cannot always initialise a brand-new one.  
