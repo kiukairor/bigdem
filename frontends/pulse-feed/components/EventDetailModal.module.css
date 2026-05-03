@@ -116,6 +116,19 @@
 }
 .mapLink:hover { opacity: 1; }
 
+.ticketLink {
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  color: #080808;
+  background: var(--accent, #e8ff3c);
+  text-decoration: none;
+  padding: 0.2rem 0.6rem;
+  display: inline-block;
+  transition: opacity 0.15s;
+}
+.ticketLink:hover { opacity: 0.85; }
+
 .tags {
   display: flex;
   flex-wrap: wrap;

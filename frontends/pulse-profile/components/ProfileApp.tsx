@@ -14,6 +14,47 @@ interface SavedEvent {
   category: string
   venue: string
   date: string
+  price_gbp?: number | null
+}
+
+const CATEGORY_COLORS: Record<string, string> = {
+  music: '#e8ff3c',
+  food: '#ff8c3c',
+  art: '#c03cff',
+  sport: '#3cffb8',
+  tech: '#3cb8ff',
+}
+
+function CostSummary({ events }: { events: SavedEvent[] }) {
+  const paid = events.filter(e => e.price_gbp && e.price_gbp > 0)
+  const total = paid.reduce((sum, e) => sum + (e.price_gbp ?? 0), 0)
+
+  const byCategory = paid.reduce<Record<string, number>>((acc, e) => {
+    acc[e.category] = (acc[e.category] ?? 0) + (e.price_gbp ?? 0)
+    return acc
+  }, {})
+
+  const hasCosts = paid.length > 0
+
+  return (
+    <div className={styles.costSummary}>
+      <div className={styles.costTotal}>
+        <span className={styles.costLabel}>TOTAL COST</span>
+        <span className={styles.costValue}>{hasCosts ? `£${total.toFixed(2)}` : '—'}</span>
+      </div>
+      {hasCosts && Object.keys(byCategory).length > 1 && (
+        <div className={styles.costBreakdown}>
+          {Object.entries(byCategory).map(([cat, amount]) => (
+            <div key={cat} className={styles.costBreakdownItem}>
+              <span className={styles.costBreakdownDot} style={{ background: CATEGORY_COLORS[cat] || '#888' }} />
+              <span className={styles.costBreakdownCat}>{cat.toUpperCase()}</span>
+              <span className={styles.costBreakdownAmt}>£{amount.toFixed(2)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 export default function ProfileApp() {
@@ -98,21 +139,32 @@ export default function ProfileApp() {
         {savedEvents.length === 0 ? (
           <p className={styles.empty}>No saved events yet — bookmark events from the feed.</p>
         ) : (
-          <div className={styles.savedList}>
-            {savedEvents.map(event => (
-              <div key={event.id} className={styles.savedItem}>
-                <div className={styles.savedItemInfo}>
-                  <span className={styles.savedItemTitle}>{event.title}</span>
-                  <span className={styles.savedItemMeta}>
-                    {event.category.toUpperCase()} · {event.venue} · {new Date(event.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
-                  </span>
-                </div>
-                <button className={styles.unsaveBtn} onClick={() => handleUnsave(event.id)}>
-                  Remove
-                </button>
-              </div>
-            ))}
-          </div>
+          <>
+            <div className={styles.savedList}>
+              {savedEvents.map(event => {
+                const isFree = !event.price_gbp || event.price_gbp === 0
+                return (
+                  <div key={event.id} className={styles.savedItem}>
+                    <div className={styles.savedItemInfo}>
+                      <span className={styles.savedItemTitle}>{event.title}</span>
+                      <span className={styles.savedItemMeta}>
+                        {event.category.toUpperCase()} · {event.venue} · {new Date(event.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                      </span>
+                    </div>
+                    <div className={styles.savedItemRight}>
+                      <span className={styles.savedItemPrice} style={{ color: isFree ? '#3cff8a' : 'var(--text)' }}>
+                        {isFree ? 'FREE' : `£${event.price_gbp!.toFixed(2)}`}
+                      </span>
+                      <button className={styles.unsaveBtn} onClick={() => handleUnsave(event.id)}>
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            <CostSummary events={savedEvents} />
+          </>
         )}
       </div>
 

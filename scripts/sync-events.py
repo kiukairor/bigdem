@@ -156,6 +156,7 @@ def map_tm_event(ev: dict, city: str, pulse_category: str) -> Optional[dict]:
         "date":        date.isoformat(),
         "price_gbp":   round(price, 2),
         "image_url":   image_url[:512],
+        "ticket_url":  ev.get("url", "")[:512],
         "tags":        tags,
     }
 
@@ -234,6 +235,7 @@ def map_paris_event(rec: dict, pulse_category: str) -> Optional[dict]:
         "date":        date.isoformat(),
         "price_gbp":   parse_eur_price(rec.get("price_detail") or ("0" if rec.get("price_type") == "gratuit" else None)),
         "image_url":   (rec.get("cover_url") or "")[:512],
+        "ticket_url":  (rec.get("url") or rec.get("url_canonical") or "")[:512],
         "tags":        tags,
     }
 
@@ -280,7 +282,7 @@ def emit_sql(events: list[dict]) -> None:
         tags = "ARRAY[" + ", ".join(f"'{sq(t)}'" for t in ev["tags"]) + "]"
         print(
             f"INSERT INTO events "
-            f"(id, title, description, category, venue, address, city, date, price_gbp, image_url, tags) VALUES ("
+            f"(id, title, description, category, venue, address, city, date, price_gbp, image_url, ticket_url, tags) VALUES ("
             f"'{sq(ev['id'])}', "
             f"'{sq(ev['title'])}', "
             f"'{sq(ev['description'])}', "
@@ -291,13 +293,14 @@ def emit_sql(events: list[dict]) -> None:
             f"'{ev['date']}', "
             f"{ev['price_gbp']}, "
             f"'{sq(ev['image_url'])}', "
+            f"'{sq(ev['ticket_url'])}', "
             f"{tags}"
             f") ON CONFLICT (id) DO UPDATE SET "
             f"title=EXCLUDED.title, description=EXCLUDED.description, "
             f"category=EXCLUDED.category, venue=EXCLUDED.venue, "
             f"address=EXCLUDED.address, city=EXCLUDED.city, "
             f"date=EXCLUDED.date, price_gbp=EXCLUDED.price_gbp, "
-            f"image_url=EXCLUDED.image_url, tags=EXCLUDED.tags;"
+            f"image_url=EXCLUDED.image_url, ticket_url=EXCLUDED.ticket_url, tags=EXCLUDED.tags;"
         )
     print()
     print("COMMIT;")

@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS events (
   date TIMESTAMPTZ NOT NULL,
   price_gbp NUMERIC(10,2),
   image_url VARCHAR(512),
+  ticket_url VARCHAR(512) NOT NULL DEFAULT '',
   tags TEXT[] NOT NULL DEFAULT '{}',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

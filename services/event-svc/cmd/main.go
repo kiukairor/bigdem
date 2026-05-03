@@ -25,6 +25,7 @@ type Event struct {
 	City        string    `json:"city"`
 	Date        time.Time `json:"date"`
 	PriceGBP    *float64  `json:"price_gbp"`
+	TicketURL   string    `json:"ticket_url,omitempty"`
 	Tags        []string  `json:"tags"`
 }
 
@@ -135,7 +136,7 @@ func getEventsHandler(c *gin.Context) {
 	logger.Debug("fetching events", zap.String("city", city))
 
 	rows, err := db.QueryContext(c.Request.Context(),
-		`SELECT id, title, description, category, venue, address, city, date, price_gbp, tags
+		`SELECT id, title, description, category, venue, address, city, date, price_gbp, ticket_url, tags
 		 FROM events WHERE city = $1 ORDER BY date ASC`, city)
 	if err != nil {
 		logger.Error("DB query failed in getEvents", zap.String("city", city), zap.Error(err))
@@ -148,7 +149,7 @@ func getEventsHandler(c *gin.Context) {
 	for rows.Next() {
 		var e Event
 		if err := rows.Scan(&e.ID, &e.Title, &e.Description, &e.Category,
-			&e.Venue, &e.Address, &e.City, &e.Date, &e.PriceGBP,
+			&e.Venue, &e.Address, &e.City, &e.Date, &e.PriceGBP, &e.TicketURL,
 			pqArray(&e.Tags)); err != nil {
 			logger.Warn("event row scan error", zap.Error(err))
 			continue
@@ -182,10 +183,10 @@ func getEventHandler(c *gin.Context) {
 	id := c.Param("id")
 	var e Event
 	err := db.QueryRowContext(c.Request.Context(),
-		`SELECT id, title, description, category, venue, address, city, date, price_gbp, tags
+		`SELECT id, title, description, category, venue, address, city, date, price_gbp, ticket_url, tags
 		 FROM events WHERE id = $1`, id).
 		Scan(&e.ID, &e.Title, &e.Description, &e.Category,
-			&e.Venue, &e.Address, &e.City, &e.Date, &e.PriceGBP,
+			&e.Venue, &e.Address, &e.City, &e.Date, &e.PriceGBP, &e.TicketURL,
 			pqArray(&e.Tags))
 	if err == sql.ErrNoRows {
 		logger.Warn("event not found", zap.String("event_id", id))
@@ -204,7 +205,7 @@ func getEventHandler(c *gin.Context) {
 func getEventsByCategoryHandler(c *gin.Context) {
 	category := c.Param("category")
 	rows, err := db.QueryContext(c.Request.Context(),
-		`SELECT id, title, description, category, venue, address, city, date, price_gbp, tags
+		`SELECT id, title, description, category, venue, address, city, date, price_gbp, ticket_url, tags
 		 FROM events WHERE category = $1 ORDER BY date ASC`, category)
 	if err != nil {
 		logger.Error("DB query failed in getEventsByCategory", zap.String("category", category), zap.Error(err))
@@ -217,7 +218,7 @@ func getEventsByCategoryHandler(c *gin.Context) {
 	for rows.Next() {
 		var e Event
 		if err := rows.Scan(&e.ID, &e.Title, &e.Description, &e.Category,
-			&e.Venue, &e.Address, &e.City, &e.Date, &e.PriceGBP,
+			&e.Venue, &e.Address, &e.City, &e.Date, &e.PriceGBP, &e.TicketURL,
 			pqArray(&e.Tags)); err != nil {
 			logger.Warn("category event row scan error", zap.String("category", category), zap.Error(err))
 			continue

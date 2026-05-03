@@ -76,6 +76,14 @@ export default function EventDetailModal({ event, saved, onSave, onClose }: any)
                 {isFree ? 'FREE' : `£${event.price_gbp}`}
               </span>
             </div>
+            {event.ticket_url && (
+              <div className={styles.detail}>
+                <span className={styles.label}>TICKETS</span>
+                <a href={event.ticket_url} target="_blank" rel="noreferrer" className={styles.ticketLink}>
+                  Get tickets ↗
+                </a>
+              </div>
+            )}
             {event.tags && event.tags.length > 0 && (
               <div className={styles.detail}>
                 <span className={styles.label}>TAGS</span>
