@@ -3,7 +3,7 @@ replicaCount: 1
 image:
   repository: ghcr.io/kiukairor/ai-svc
   pullPolicy: IfNotPresent
-  tag: "sha-87100c8"
+  tag: "sha-c257052"
 
 imagePullSecrets:
   - name: ghcr-secret
