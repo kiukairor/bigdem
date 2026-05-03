@@ -83,17 +83,19 @@ Image tags are managed by CI (GitHub Actions updates values.yaml automatically o
 Core narrative:
 > "Something is wrong in production. I don't know what. Watch how fast I find it with New Relic."
 
-5 pre-planned bug scenarios (implemented as env flag toggles):
+6 pre-planned bug scenarios:
 
-| # | Env Flag | Bug | NR Feature |
-|---|----------|-----|------------|
-| 1 | `BUG_AI_SLOW=true` | Claude API call delayed 8s | Distributed Tracing |
+| # | Env Flag / Trigger | Bug | NR Feature |
+|---|-------------------|-----|------------|
+| 1 | `BUG_AI_SLOW=true` | AI call delayed 8s (Gemini or Claude) | Distributed Tracing |
 | 2 | `BUG_STALE_CACHE=true` | Events return wrong dates, no errors | Logs in Context |
 | 3 | `BUG_MEMORY_LEAK=true` | session-svc accumulates connections | Infrastructure monitoring |
 | 4 | `BUG_TOKEN_FLOOD=true` | Full DB sent as Claude context every request | LLM Observability |
-| 5 | Scripted | ai-svc killed → retry storm → cascade | Service Maps + Alerts |
+| 5 | UI "LIVE" button | 1s polling of event-svc (~60 req/min) | Service Maps + Alerts |
+| 6 | Scripted | ai-svc killed → retry storm → cascade | Service Maps + Alerts |
 
 Bugs 1-4 are toggled via Helm values.yaml env vars — no redeployment needed, just a git push.
+Bug 5 (`BUG_LIVE_REFRESH`) is UI-only: the "● LIVE" toggle in pulse-feed activates 1s polling of event-svc. AI recommendation refresh is a separate background timer set to every 4 hours.
 
 ---
 
@@ -104,16 +106,24 @@ Bugs 1-4 are toggled via Helm values.yaml env vars — no redeployment needed, j
 User → pulse-shell (3000)
      → loads pulse-feed MFE via Module Federation
      → pulse-feed → event-svc (8080) → PostgreSQL
-     → pulse-feed → ai-svc (8082) → Claude API
-     → ai-svc fallback → rule-based recs (when Claude unavailable)
+     → pulse-feed → ai-svc (8082) → Gemini API (default) or Claude API
+     → ai-svc fallback → rule-based recs (when AI unavailable)
      → user saves event → event-svc → PostgreSQL
      → user toggles AI off → event-svc → ai_opt_out_log table → NR custom event
 ```
 
+### AI providers (multi-LLM)
+- **Default**: Gemini (`AI_PROVIDER=gemini`, model `gemini-2.0-flash-lite`)
+- **Alternative**: Claude (`AI_PROVIDER=claude`, model from `anthropic-secret.model`)
+- Users can switch provider live in the UI (GEMINI / CLAUDE toggle in the AI panel)
+- Per-request override: `provider` field in the POST /recommendations body
+- Ticketmaster provides raw **event data** only (via sync-events.py → PostgreSQL). Gemini/Claude do the recommendation ranking — they are completely separate.
+- AI recs background refresh: every **4 hours** in FeedApp.tsx (Redis server-side cache TTL: 5 min)
+
 ### AI degradation (3 modes)
 ```
-FULL AI    → Claude responds normally
-DEGRADED   → Cached Claude response (circuit breaker HALF_OPEN)
+FULL AI    → Gemini (default) or Claude responds normally
+DEGRADED   → Cached AI response (circuit breaker HALF_OPEN)
 NO AI      → Rule-based fallback, app 100% functional
 ```
 
@@ -174,7 +184,8 @@ kubectl create secret docker-registry ghcr-secret \
 ```
 
 K8s secret names used in Helm charts:
-- `anthropic-secret` → api-key, model
+- `gemini-secret` → api-key (**default AI provider**, gemini-2.0-flash-lite)
+- `anthropic-secret` → api-key, model (only needed when AI_PROVIDER=claude or user switches to Claude in UI)
 - `newrelic-secret` → license-key, account-id
 - `postgres-secret` → username, password, database, host, port
 - `redis-secret` → host, port
@@ -213,7 +224,7 @@ Custom NR metrics: `Custom/AICircuitBreaker/State`, `Custom/AI/ResponseMs`, `Cus
 - Helm charts, ArgoCD apps, GitHub Actions CI
 - NGINX Gateway Fabric v1.6.1 + K8s GW API v1.3.0, NodePort :30080/:30443, self-signed TLS for *.pulse.test
 
-### 🔄 Week 2 — IN PROGRESS
+### ✅ Week 2 — COMPLETE
 - [x] session-svc: build real Python/FastAPI service
   - POST /sessions, GET /sessions/:id
   - POST /sessions/:id/saved-events, DELETE /sessions/:id/saved-events/:event_id
@@ -243,10 +254,15 @@ Custom NR metrics: `Custom/AICircuitBreaker/State`, `Custom/AI/ResponseMs`, `Cus
 
 ### 🔄 Week 3 — IN PROGRESS
 - [x] Bug scenarios 1-3 as env flag toggles (BUG_AI_SLOW, BUG_STALE_CACHE, BUG_MEMORY_LEAK)
-  - BUG_AI_SLOW: 8s sleep in ai-svc before Claude call, cache bypassed so delay is always visible
+  - BUG_AI_SLOW: 8s sleep in ai-svc before Gemini/Claude call, cache bypassed so delay is always visible
   - BUG_STALE_CACHE: event-svc shifts all event dates back 45 days silently
   - BUG_MEMORY_LEAK: session-svc appends session payloads to a global list on every request, never freed
   - Each bug fires `BugScenarioEnabled` custom event to NR; toggle is one line in infra/helm/<svc>/values.yaml + git push
+- [x] Multi-LLM support: Gemini (default, gemini-2.0-flash-lite) + Claude selectable in UI
+  - Provider toggle in AI panel (GEMINI / CLAUDE buttons)
+  - Gemini key wired via gemini-secret; Claude key via anthropic-secret
+- [x] BUG_LIVE_REFRESH: UI "LIVE" button enables 1s polling of event-svc (~60 req/min)
+  - AI recommendation refresh is separate: background timer every 4 hours (server-side Redis cache: 5 min TTL)
 - [ ] NR dashboards: circuit breaker, opt-out rate, AI latency, token cost
 - [ ] NR alerts: error rate > 5%, p99 > 3s, memory > 80%
 - [ ] Simple auth: username + password (no email)

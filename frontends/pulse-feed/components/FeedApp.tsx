@@ -36,6 +36,7 @@ export default function FeedApp({ city = 'London' }: FeedAppProps) {
   const [category, setCategory] = useState('all')
   const [aiEnabled, setAiEnabled] = useState(true)
   const [aiMode, setAiMode] = useState<'ai'|'degraded'|'fallback'|null>(null)
+  const [aiProvider, setAiProvider] = useState('gemini')
   const [loading, setLoading] = useState(true)
   const [recsLoading, setRecsLoading] = useState(false)
   const [user, setUser] = useState<any>(null)
@@ -97,7 +98,7 @@ export default function FeedApp({ city = 'London' }: FeedAppProps) {
     }).catch(() => setLoading(false))
   }, [city])
 
-  const fetchRecommendations = async (allEvents: any[], usr: any) => {
+  const fetchRecommendations = async (allEvents: any[], usr: any, provider = aiProvider) => {
     setRecsLoading(true)
     try {
       const res = await fetch(`${AI_SVC}/recommendations`, {
@@ -109,6 +110,7 @@ export default function FeedApp({ city = 'London' }: FeedAppProps) {
           saved_event_ids: savedIds,
           available_events: allEvents,
           city,
+          provider,
         }),
       })
       if (!res.ok) throw new Error(`ai-svc ${res.status}`)
@@ -159,6 +161,21 @@ export default function FeedApp({ city = 'London' }: FeedAppProps) {
       // revert on failure
       setSavedIds(prev => isSaved ? [...prev, id] : prev.filter(x => x !== id))
     }
+  }
+
+  // Background AI recs refresh: once every 4 hours. Recs are Redis-cached server-side (5 min TTL)
+  // so this mainly keeps them fresh across long sessions without hammering the AI API.
+  useEffect(() => {
+    if (!aiEnabled) return
+    const t = setInterval(() => {
+      if (user && (events as any[]).length > 0) fetchRecommendations(events, user, aiProvider)
+    }, 4 * 60 * 60 * 1000)
+    return () => clearInterval(t)
+  }, [aiEnabled, user, events, aiProvider])
+
+  const handleProviderChange = (p: string) => {
+    setAiProvider(p)
+    if (aiEnabled && user) fetchRecommendations(events, user, p)
   }
 
   const handleAIToggle = async (enabled: boolean, reason?: string) => {
@@ -242,6 +259,8 @@ export default function FeedApp({ city = 'London' }: FeedAppProps) {
           loading={recsLoading}
           mode={aiMode}
           aiEnabled={aiEnabled}
+          provider={aiProvider}
+          onProviderChange={handleProviderChange}
         />
         <SavedPanel
           events={events}

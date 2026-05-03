@@ -29,7 +29,7 @@ cb = CircuitBreaker(
 )
 
 CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-20250514")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-lite")
 DEFAULT_PROVIDER = os.getenv("AI_PROVIDER", "gemini")
 DEMO_CITY = os.getenv("DEMO_CITY", "London")
 REC_CACHE_TTL = 300

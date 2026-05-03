@@ -27,6 +27,36 @@
   padding: 0.15rem 0.4rem;
 }
 
+.providerSelector {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 1.25rem;
+}
+
+.providerBtn {
+  flex: 1;
+  padding: 0.25rem 0;
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.providerBtn:hover {
+  border-color: var(--text-dim);
+  color: var(--text);
+}
+
+.providerActive {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #080808;
+}
+
 .loading {
   display: flex;
   align-items: center;

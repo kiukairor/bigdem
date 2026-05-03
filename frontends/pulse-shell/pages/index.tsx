@@ -37,5 +37,7 @@ export default function Home() {
 }
 
 export async function getServerSideProps() {
+  const { default: logger } = await import('../lib/logger')
+  logger.info('rendering home page')
   return { props: {} }
 }

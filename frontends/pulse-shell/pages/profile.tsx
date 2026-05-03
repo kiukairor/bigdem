@@ -36,5 +36,7 @@ export default function ProfilePage() {
 }
 
 export async function getServerSideProps() {
+  const { default: logger } = await import('../lib/logger')
+  logger.info('rendering profile page')
   return { props: {} }
 }

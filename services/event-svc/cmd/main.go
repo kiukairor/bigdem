@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"log"
 	"net/http"
 	"os"
 	"time"
@@ -13,6 +12,7 @@ import (
 	newrelic "github.com/newrelic/go-agent/v3/newrelic"
 	nrgin "github.com/newrelic/go-agent/v3/integrations/nrgin"
 	_ "github.com/newrelic/go-agent/v3/integrations/nrpq"
+	"go.uber.org/zap"
 )
 
 type Event struct {
@@ -39,18 +39,33 @@ type User struct {
 
 var db *sql.DB
 var nrApp *newrelic.Application
+var logger *zap.Logger
 var bugStaleCache = os.Getenv("BUG_STALE_CACHE") == "true"
 
 func main() {
+	var err error
+	logger, err = zap.NewProduction()
+	if err != nil {
+		panic("failed to init logger: " + err.Error())
+	}
+	defer logger.Sync()
+
+	logger.Info("event-svc starting",
+		zap.String("version", "pulse"),
+		zap.Bool("bug_stale_cache", bugStaleCache),
+	)
+
 	// New Relic
-	app, err := newrelic.NewApplication(
+	app, nrErr := newrelic.NewApplication(
 		newrelic.ConfigAppName(getEnv("NEW_RELIC_APP_NAME", "pulse-event-svc")),
 		newrelic.ConfigLicense(getEnv("NEW_RELIC_LICENSE_KEY", "")),
 		newrelic.ConfigDistributedTracerEnabled(true),
 		newrelic.ConfigAppLogForwardingEnabled(true),
 	)
-	if err != nil {
-		log.Printf("WARN: New Relic not configured: %v", err)
+	if nrErr != nil {
+		logger.Warn("New Relic not configured — APM disabled", zap.Error(nrErr))
+	} else {
+		logger.Info("New Relic agent initialized")
 	}
 	nrApp = app
 
@@ -64,14 +79,17 @@ func main() {
 
 	db, err = sql.Open("nrpostgres", dsn)
 	if err != nil {
-		log.Fatalf("DB connect error: %v", err)
+		logger.Fatal("failed to open DB", zap.Error(err))
 	}
 	defer db.Close()
 
 	if err := db.Ping(); err != nil {
-		log.Fatalf("DB ping error: %v", err)
+		logger.Fatal("DB ping failed", zap.Error(err))
 	}
-	log.Println("Connected to PostgreSQL")
+	logger.Info("connected to PostgreSQL",
+		zap.String("host", getEnv("POSTGRES_HOST", "localhost")),
+		zap.String("db", getEnv("POSTGRES_DB", "pulse")),
+	)
 
 	// Router
 	r := gin.New()
@@ -104,7 +122,7 @@ func main() {
 	r.DELETE("/user/saved-events/:event_id", unsaveEventHandler)
 
 	port := getEnv("PORT", "8080")
-	log.Printf("event-svc listening on :%s", port)
+	logger.Info("event-svc ready", zap.String("port", port))
 	r.Run(":" + port)
 }
 
@@ -114,10 +132,13 @@ func healthHandler(c *gin.Context) {
 
 func getEventsHandler(c *gin.Context) {
 	city := c.DefaultQuery("city", getEnv("DEMO_CITY", "London"))
+	logger.Debug("fetching events", zap.String("city", city))
+
 	rows, err := db.QueryContext(c.Request.Context(),
 		`SELECT id, title, description, category, venue, address, city, date, price_gbp, tags
 		 FROM events WHERE city = $1 ORDER BY date ASC`, city)
 	if err != nil {
+		logger.Error("DB query failed in getEvents", zap.String("city", city), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -129,14 +150,19 @@ func getEventsHandler(c *gin.Context) {
 		if err := rows.Scan(&e.ID, &e.Title, &e.Description, &e.Category,
 			&e.Venue, &e.Address, &e.City, &e.Date, &e.PriceGBP,
 			pqArray(&e.Tags)); err != nil {
-			log.Printf("scan error: %v", err)
+			logger.Warn("event row scan error", zap.Error(err))
 			continue
 		}
 		events = append(events, e)
 	}
 
+	logger.Info("events fetched", zap.String("city", city), zap.Int("count", len(events)))
+
 	if bugStaleCache {
-		log.Printf(`{"level":"warn","bug":"BUG_STALE_CACHE","msg":"returning stale cached events, dates shifted -45 days","count":%d}`, len(events))
+		logger.Warn("BUG_STALE_CACHE active — shifting event dates -45 days",
+			zap.String("bug", "BUG_STALE_CACHE"),
+			zap.Int("count", len(events)),
+		)
 		for i := range events {
 			events[i].Date = events[i].Date.Add(-45 * 24 * time.Hour)
 		}
@@ -162,13 +188,16 @@ func getEventHandler(c *gin.Context) {
 			&e.Venue, &e.Address, &e.City, &e.Date, &e.PriceGBP,
 			pqArray(&e.Tags))
 	if err == sql.ErrNoRows {
+		logger.Warn("event not found", zap.String("event_id", id))
 		c.JSON(http.StatusNotFound, gin.H{"error": "event not found"})
 		return
 	}
 	if err != nil {
+		logger.Error("DB query failed in getEvent", zap.String("event_id", id), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	logger.Info("event fetched", zap.String("event_id", id), zap.String("title", e.Title))
 	c.JSON(http.StatusOK, e)
 }
 
@@ -178,6 +207,7 @@ func getEventsByCategoryHandler(c *gin.Context) {
 		`SELECT id, title, description, category, venue, address, city, date, price_gbp, tags
 		 FROM events WHERE category = $1 ORDER BY date ASC`, category)
 	if err != nil {
+		logger.Error("DB query failed in getEventsByCategory", zap.String("category", category), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -189,10 +219,12 @@ func getEventsByCategoryHandler(c *gin.Context) {
 		if err := rows.Scan(&e.ID, &e.Title, &e.Description, &e.Category,
 			&e.Venue, &e.Address, &e.City, &e.Date, &e.PriceGBP,
 			pqArray(&e.Tags)); err != nil {
+			logger.Warn("category event row scan error", zap.String("category", category), zap.Error(err))
 			continue
 		}
 		events = append(events, e)
 	}
+	logger.Info("events by category fetched", zap.String("category", category), zap.Int("count", len(events)))
 	c.JSON(http.StatusOK, events)
 }
 
@@ -205,13 +237,16 @@ func getUserHandler(c *gin.Context) {
 		Scan(&u.ID, &u.DisplayName, &u.Location, &u.AIEnabled,
 			&u.AIOptOutReason, &u.Preferences)
 	if err == sql.ErrNoRows {
+		logger.Warn("user not found", zap.String("user_id", userID))
 		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
 		return
 	}
 	if err != nil {
+		logger.Error("DB query failed in getUser", zap.String("user_id", userID), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	logger.Info("user fetched", zap.String("user_id", u.ID), zap.Bool("ai_enabled", u.AIEnabled))
 	c.JSON(http.StatusOK, u)
 }
 
@@ -224,6 +259,7 @@ func updateAIPreferenceHandler(c *gin.Context) {
 	userID := getEnv("DEMO_USER_ID", "demo_user")
 	var req AIPreferenceRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Warn("invalid AI preference payload", zap.String("user_id", userID), zap.Error(err))
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -232,12 +268,19 @@ func updateAIPreferenceHandler(c *gin.Context) {
 		`UPDATE users SET ai_enabled = $1, ai_opt_out_reason = $2, updated_at = NOW()
 		 WHERE id = $3`, req.AIEnabled, req.Reason, userID)
 	if err != nil {
+		logger.Error("DB update failed in updateAIPreference", zap.String("user_id", userID), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Log opt-out for NR observability
-	if !req.AIEnabled {
+	if req.AIEnabled {
+		logger.Info("user enabled AI", zap.String("user_id", userID))
+	} else {
+		reason := ""
+		if req.Reason != nil {
+			reason = *req.Reason
+		}
+		logger.Info("user disabled AI", zap.String("user_id", userID), zap.String("reason", reason))
 		db.ExecContext(context.Background(),
 			`INSERT INTO ai_opt_out_log (user_id, reason) VALUES ($1, $2)`,
 			userID, req.Reason)
@@ -254,6 +297,7 @@ func updatePreferencesHandler(c *gin.Context) {
 	userID := getEnv("DEMO_USER_ID", "demo_user")
 	var req UpdatePreferencesRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Warn("invalid preferences payload", zap.String("user_id", userID), zap.Error(err))
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -266,9 +310,11 @@ func updatePreferencesHandler(c *gin.Context) {
 		`UPDATE users SET preferences = $1, updated_at = NOW() WHERE id = $2`,
 		string(prefsJSON), userID)
 	if err != nil {
+		logger.Error("DB update failed in updatePreferences", zap.String("user_id", userID), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	logger.Info("user preferences updated", zap.String("user_id", userID), zap.Strings("categories", req.Categories))
 	c.JSON(http.StatusOK, gin.H{"categories": req.Categories})
 }
 
@@ -281,6 +327,7 @@ func getSavedEventsHandler(c *gin.Context) {
 	rows, err := db.QueryContext(c.Request.Context(),
 		`SELECT event_id FROM saved_events WHERE user_id = $1 ORDER BY saved_at DESC`, userID)
 	if err != nil {
+		logger.Error("DB query failed in getSavedEvents", zap.String("user_id", userID), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -292,6 +339,7 @@ func getSavedEventsHandler(c *gin.Context) {
 			ids = append(ids, id)
 		}
 	}
+	logger.Debug("saved events fetched", zap.String("user_id", userID), zap.Int("count", len(ids)))
 	c.JSON(http.StatusOK, gin.H{"saved_event_ids": ids})
 }
 
@@ -299,6 +347,7 @@ func saveEventHandler(c *gin.Context) {
 	userID := getEnv("DEMO_USER_ID", "demo_user")
 	var req SaveEventRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Warn("invalid save event payload", zap.String("user_id", userID), zap.Error(err))
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -306,9 +355,11 @@ func saveEventHandler(c *gin.Context) {
 		`INSERT INTO saved_events (user_id, event_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
 		userID, req.EventID)
 	if err != nil {
+		logger.Error("DB insert failed in saveEvent", zap.String("user_id", userID), zap.String("event_id", req.EventID), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	logger.Info("event saved", zap.String("user_id", userID), zap.String("event_id", req.EventID))
 	c.JSON(http.StatusCreated, gin.H{"saved": true, "event_id": req.EventID})
 }
 
@@ -318,9 +369,11 @@ func unsaveEventHandler(c *gin.Context) {
 	_, err := db.ExecContext(c.Request.Context(),
 		`DELETE FROM saved_events WHERE user_id = $1 AND event_id = $2`, userID, eventID)
 	if err != nil {
+		logger.Error("DB delete failed in unsaveEvent", zap.String("user_id", userID), zap.String("event_id", eventID), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	logger.Info("event unsaved", zap.String("user_id", userID), zap.String("event_id", eventID))
 	c.JSON(http.StatusOK, gin.H{"saved": false, "event_id": eventID})
 }
 

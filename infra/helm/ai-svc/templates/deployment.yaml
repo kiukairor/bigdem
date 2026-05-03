@@ -44,6 +44,11 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.secrets.anthropic }}
                   key: model
+            - name: GEMINI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.gemini }}
+                  key: api-key
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           livenessProbe:

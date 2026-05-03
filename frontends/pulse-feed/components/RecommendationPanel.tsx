@@ -6,7 +6,21 @@ const MODE_LABELS: Record<string, { label: string; color: string }> = {
   fallback: { label: 'RULE-BASED', color: 'var(--text-dim)' },
 }
 
-export default function RecommendationPanel({ recommendations, loading, mode, aiEnabled }: any) {
+const PROVIDERS = [
+  { id: 'gemini', label: 'GEMINI' },
+  { id: 'claude', label: 'CLAUDE' },
+]
+
+interface Props {
+  recommendations: any[]
+  loading: boolean
+  mode: string | null
+  aiEnabled: boolean
+  provider: string
+  onProviderChange: (p: string) => void
+}
+
+export default function RecommendationPanel({ recommendations, loading, mode, aiEnabled, provider, onProviderChange }: Props) {
   if (!aiEnabled) return (
     <div className={styles.panel}>
       <h2 className={styles.heading}>FOR YOU</h2>
@@ -27,10 +41,22 @@ export default function RecommendationPanel({ recommendations, loading, mode, ai
         )}
       </div>
 
+      <div className={styles.providerSelector}>
+        {PROVIDERS.map(p => (
+          <button
+            key={p.id}
+            className={`${styles.providerBtn} ${provider === p.id ? styles.providerActive : ''}`}
+            onClick={() => onProviderChange(p.id)}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+
       {loading && (
         <div className={styles.loading}>
           <div className={styles.pulse} />
-          <span>Asking Claude...</span>
+          <span>Asking {provider === 'claude' ? 'Claude' : 'Gemini'}...</span>
         </div>
       )}
 
