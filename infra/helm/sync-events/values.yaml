@@ -1,7 +1,7 @@
 image:
   repository: ghcr.io/kiukairor/sync-events
   pullPolicy: IfNotPresent
-  tag: "sha-bc36e9a"
+  tag: "sha-0b10905"
 
 imagePullSecrets:
   - name: ghcr-secret
