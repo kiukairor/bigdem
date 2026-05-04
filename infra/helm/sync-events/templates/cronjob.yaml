@@ -27,10 +27,14 @@ spec:
               image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
               imagePullPolicy: {{ .Values.image.pullPolicy }}
               env:
-                - name: TICKETMASTER_API_KEY
+                {{- range $key, $val := .Values.env }}
+                - name: {{ $key }}
+                  value: {{ $val | quote }}
+                {{- end }}
+                - name: GEMINI_API_KEY
                   valueFrom:
                     secretKeyRef:
-                      name: {{ .Values.secrets.ticketmaster }}
+                      name: {{ .Values.secrets.gemini }}
                       key: api-key
                 - name: POSTGRES_HOST
                   valueFrom:

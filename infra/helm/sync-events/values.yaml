@@ -8,6 +8,9 @@ imagePullSecrets:
 
 schedule: "0 0 * * *"
 
+env:
+  GEMINI_MODEL: "gemini-3.1-flash-lite-preview"
+
 secrets:
   postgres: postgres-secret
-  ticketmaster: ticketmaster-secret
+  gemini: gemini-secret
