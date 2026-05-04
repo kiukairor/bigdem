@@ -1,0 +1,4 @@
+apiVersion: v2
+name: sync-events
+description: Daily CronJob to sync fresh events from Ticketmaster and Paris Open Data
+version: 0.1.0

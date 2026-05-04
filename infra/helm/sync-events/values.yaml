@@ -1,0 +1,13 @@
+image:
+  repository: ghcr.io/kiukairor/sync-events
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+imagePullSecrets:
+  - name: ghcr-secret
+
+schedule: "0 0 * * *"
+
+secrets:
+  postgres: postgres-secret
+  ticketmaster: ticketmaster-secret

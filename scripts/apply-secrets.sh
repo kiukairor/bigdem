@@ -29,6 +29,11 @@ kubectl create secret generic gemini-secret \
   --from-literal=api-key="$GEMINI_API_KEY" \
   -n "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
 
+# Ticketmaster (event sync CronJob)
+kubectl create secret generic ticketmaster-secret \
+  --from-literal=api-key="$TICKETMASTER_API_KEY" \
+  -n "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+
 # New Relic (APM + Browser)
 # Browser keys are optional — leave them blank if Browser apps not yet created in NR console
 kubectl create secret generic newrelic-secret \

@@ -5,7 +5,10 @@ Sync real events into the PULSE events table using the best available source per
   London → Ticketmaster Discovery API  (TICKETMASTER_API_KEY required)
   Paris  → Paris Open Data "que-faire-a-paris" (no auth, 1 800+ events)
 
-Outputs SQL on stdout; pipe into the Postgres pod:
+Direct DB mode (when POSTGRES_HOST is set — used by the K8s CronJob):
+  Writes directly to PostgreSQL via psycopg2.
+
+SQL stdout mode (legacy, for manual use):
   python3 scripts/sync-events.py | kubectl exec -n pulse-prod -i postgresql-0 -- psql -U pulse -d pulse
 
 Adding a new city:
@@ -264,7 +267,7 @@ def fetch_paris() -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
-# SQL output
+# SQL output (stdout / legacy mode)
 # ---------------------------------------------------------------------------
 
 def sq(s: str) -> str:
@@ -275,8 +278,9 @@ def sq(s: str) -> str:
 def emit_sql(events: list[dict]) -> None:
     print("BEGIN;")
     print()
-    print("DELETE FROM saved_events;")
-    print("DELETE FROM events;")
+    print("-- Remove past events and their saves; upsert fresh ones")
+    print("DELETE FROM saved_events WHERE event_id IN (SELECT id FROM events WHERE date < NOW());")
+    print("DELETE FROM events WHERE date < NOW();")
     print()
     for ev in events:
         tags = "ARRAY[" + ", ".join(f"'{sq(t)}'" for t in ev["tags"]) + "]"
@@ -308,6 +312,55 @@ def emit_sql(events: list[dict]) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Direct DB mode (K8s CronJob)
+# ---------------------------------------------------------------------------
+
+def execute_to_db(events: list[dict]) -> None:
+    import psycopg2
+    conn = psycopg2.connect(
+        host=os.getenv("POSTGRES_HOST", "postgresql"),
+        port=int(os.getenv("POSTGRES_PORT", "5432")),
+        user=os.getenv("POSTGRES_USER", "pulse"),
+        password=os.getenv("POSTGRES_PASSWORD", ""),
+        dbname=os.getenv("POSTGRES_DB", "pulse"),
+    )
+    conn.autocommit = False
+    cur = conn.cursor()
+    try:
+        cur.execute("DELETE FROM saved_events WHERE event_id IN (SELECT id FROM events WHERE date < NOW())")
+        cur.execute("DELETE FROM events WHERE date < NOW()")
+        for ev in events:
+            cur.execute(
+                """
+                INSERT INTO events
+                  (id, title, description, category, venue, address, city, date,
+                   price_gbp, image_url, ticket_url, tags)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                ON CONFLICT (id) DO UPDATE SET
+                  title=EXCLUDED.title, description=EXCLUDED.description,
+                  category=EXCLUDED.category, venue=EXCLUDED.venue,
+                  address=EXCLUDED.address, city=EXCLUDED.city,
+                  date=EXCLUDED.date, price_gbp=EXCLUDED.price_gbp,
+                  image_url=EXCLUDED.image_url, ticket_url=EXCLUDED.ticket_url,
+                  tags=EXCLUDED.tags
+                """,
+                (
+                    ev["id"], ev["title"], ev["description"], ev["category"],
+                    ev["venue"], ev["address"], ev["city"], ev["date"],
+                    ev["price_gbp"], ev["image_url"], ev["ticket_url"], ev["tags"],
+                ),
+            )
+        conn.commit()
+        print(f"-- Synced {len(events)} events to database", file=sys.stderr)
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        cur.close()
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -315,7 +368,13 @@ def main() -> None:
     events  = fetch_london()
     events += fetch_paris()
     print(f"-- Grand total: {len(events)} events", file=sys.stderr)
-    emit_sql(events)
+    if not events:
+        print("-- ERROR: no events fetched — aborting to preserve existing data", file=sys.stderr)
+        sys.exit(1)
+    if os.getenv("POSTGRES_HOST"):
+        execute_to_db(events)
+    else:
+        emit_sql(events)
 
 
 if __name__ == "__main__":
