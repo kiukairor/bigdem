@@ -343,7 +343,7 @@ kubectl get applications -n argocd
 ## Upgrade Path (do not implement yet)
 
 1. **Real auth** — users table schema already supports it, session-svc will add JWT
-2. **Free-text city input** — swap the London/Paris dropdown for a text input; event-svc returns `[]` for unknown cities; frontend calls `POST /api/ai-svc/events/generate?city=X` which runs the Gemini sync prompt on demand and stores results; sync-events CronJob queries `SELECT DISTINCT city FROM events` at runtime to refresh all known cities. Cost: ~$0.001 per new city typed. No schema changes needed.
+2. **Free-text city input** — keep the London/Paris dropdown as defaults, add a text input alongside it so users can type any city; event-svc returns `[]` for unknown cities; frontend calls `POST /api/ai-svc/events/generate?city=X` which runs the Gemini sync prompt on demand and stores results; sync-events CronJob queries `SELECT DISTINCT city FROM events` at runtime to refresh all known cities nightly. Cost: ~$0.001 per new city typed. No schema changes needed.
 3. **Richer events** — event-svc data layer isolated, enrich Gemini prompt for images/ticket URLs or swap for a real API
 4. **Richer AI profiles** — Claude prompt already receives user.preferences, just enrich
 5. **Multi-user** — DEMO_USER_ID env var already abstracted
