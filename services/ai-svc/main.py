@@ -1,7 +1,9 @@
 import os
+import re
 import json
 import time
 import logging
+import requests as http_requests
 import newrelic.agent
 import redis as redis_lib
 from fastapi import FastAPI, HTTPException
@@ -28,12 +30,15 @@ cb = CircuitBreaker(
     recovery_timeout=int(os.getenv("CB_RECOVERY_TIMEOUT_SECONDS", "60")),
 )
 
-CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-20250514")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-lite")
+CLAUDE_MODEL     = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-20250514")
+GEMINI_MODEL     = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite-preview")
 DEFAULT_PROVIDER = os.getenv("AI_PROVIDER", "gemini")
-DEMO_CITY = os.getenv("DEMO_CITY", "London")
-REC_CACHE_TTL = 300
-BUG_AI_SLOW = os.getenv("BUG_AI_SLOW", "false").lower() == "true"
+DEMO_CITY        = os.getenv("DEMO_CITY", "London")
+REC_CACHE_TTL    = 300
+BUG_AI_SLOW      = os.getenv("BUG_AI_SLOW", "false").lower() == "true"
+TM_API_KEY       = os.getenv("TICKETMASTER_API_KEY", "")
+TM_BASE          = "https://app.ticketmaster.com/discovery/v2/events.json"
+TODAY            = time.strftime("%Y-%m-%d", time.gmtime())
 
 try:
     redis_client = redis_lib.Redis(
@@ -248,3 +253,171 @@ def rule_based_fallback(req: RecommendationRequest) -> list[dict]:
     for e in result:
         e["reason"] = "Popular in your area"
     return result
+
+
+# ---------------------------------------------------------------------------
+# On-demand city event generation
+# ---------------------------------------------------------------------------
+
+TM_SEGMENTS_GENERIC = [
+    {"tm": "Music",          "pulse": "music", "count": 5},
+    {"tm": "Arts & Theatre", "pulse": "art",   "count": 4},
+    {"tm": "Sports",         "pulse": "sport",  "count": 4},
+    {"tm": "Food & Drink",   "pulse": "food",   "count": 3},
+    {"tm": "Miscellaneous",  "pulse": "tech",   "count": 3},
+]
+
+
+def _map_tm_event(ev: dict, city: str, pulse_category: str) -> Optional[dict]:
+    venues     = (ev.get("_embedded") or {}).get("venues") or [{}]
+    venue      = venues[0]
+    addr_parts = [
+        (venue.get("address") or {}).get("line1", ""),
+        (venue.get("city")    or {}).get("name", ""),
+        venue.get("postalCode", ""),
+    ]
+    address    = ", ".join(p for p in addr_parts if p)
+    start      = (ev.get("dates") or {}).get("start") or {}
+    date_str   = start.get("dateTime")
+    if not date_str:
+        local = start.get("localDate", "")
+        if not local:
+            return None
+        date_str = local + "T20:00:00Z"
+    try:
+        from datetime import datetime
+        date = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+    except Exception:
+        return None
+    prices    = ev.get("priceRanges") or []
+    price     = float(prices[0].get("min", 0)) if prices else 0.0
+    images    = ev.get("images") or []
+    image_url = max(images, key=lambda i: i.get("width", 0)).get("url", "") if images else ""
+    return {
+        "id":          ev["id"][:64],
+        "title":       ev.get("name", "")[:255],
+        "description": ev.get("name", "")[:255],
+        "category":    pulse_category,
+        "venue":       venue.get("name", "")[:255],
+        "address":     address[:255],
+        "city":        city,
+        "date":        date.isoformat(),
+        "price_gbp":   round(price, 2),
+        "image_url":   image_url[:512],
+        "ticket_url":  ev.get("url", "")[:512],
+        "tags":        [pulse_category],
+    }
+
+
+def _fetch_tm_city(city: str) -> list[dict]:
+    result, seen = [], set()
+    for seg in TM_SEGMENTS_GENERIC:
+        try:
+            params = {
+                "apikey": TM_API_KEY, "city": city,
+                "size": seg["count"] * 2, "classificationName": seg["tm"],
+                "sort": "date,asc", "locale": "*",
+            }
+            resp = http_requests.get(TM_BASE, params=params, timeout=15)
+            resp.raise_for_status()
+            raw = resp.json().get("_embedded", {}).get("events", [])
+        except Exception as e:
+            log.warning(f"TM fetch failed for {city}/{seg['tm']}: {e}")
+            continue
+        added = 0
+        for ev in raw:
+            if added >= seg["count"]:
+                break
+            mapped = _map_tm_event(ev, city, seg["pulse"])
+            if mapped and mapped["id"] not in seen:
+                seen.add(mapped["id"])
+                result.append(mapped)
+                added += 1
+    return result
+
+
+def _fetch_gemini_city(city: str) -> list[dict]:
+    prefix = re.sub(r"[^a-z]", "", city.lower())[:4]
+    prompt = f"""Generate 20 realistic upcoming events for {city}.
+Use exactly 4 events per category: music, food, art, sport, tech.
+Today is {TODAY}. Set event dates between tomorrow and {TODAY} + 30 days.
+Use real, well-known venue names in {city}.
+Return ONLY a valid JSON array of exactly 20 objects. No preamble.
+Each object: {{"id":"{prefix}-music-1","title":"...","description":"...","category":"music",
+"venue":"...","address":"full address, {city}","city":"{city}","date":"2026-05-10T19:00:00+00:00",
+"price_gbp":0.00,"image_url":"","ticket_url":"","tags":["tag1","tag2"]}}
+id: {prefix}-<category>-<1..4>. date ISO 8601 UTC."""
+    response = gemini_client.models.generate_content(model=GEMINI_MODEL, contents=prompt)
+    raw = response.text.strip()
+    if raw.startswith("```"):
+        parts = raw.split("```")
+        raw = parts[1][4:].strip() if len(parts) > 1 else raw
+    return json.loads(raw)
+
+
+def _write_events_to_db(events: list[dict], city: str) -> None:
+    import psycopg2
+    conn = psycopg2.connect(
+        host=os.getenv("POSTGRES_HOST", "postgresql"),
+        port=int(os.getenv("POSTGRES_PORT", "5432")),
+        user=os.getenv("POSTGRES_USER", "pulse"),
+        password=os.getenv("POSTGRES_PASSWORD", ""),
+        dbname=os.getenv("POSTGRES_DB", "pulse"),
+    )
+    conn.autocommit = False
+    cur = conn.cursor()
+    try:
+        cur.execute("DELETE FROM saved_events WHERE event_id IN (SELECT id FROM events WHERE city = %s)", (city,))
+        cur.execute("DELETE FROM events WHERE city = %s", (city,))
+        for ev in events:
+            cur.execute(
+                """INSERT INTO events
+                     (id, title, description, category, venue, address, city, date,
+                      price_gbp, image_url, ticket_url, tags)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                   ON CONFLICT (id) DO UPDATE SET
+                     title=EXCLUDED.title, description=EXCLUDED.description,
+                     category=EXCLUDED.category, venue=EXCLUDED.venue,
+                     address=EXCLUDED.address, city=EXCLUDED.city,
+                     date=EXCLUDED.date, price_gbp=EXCLUDED.price_gbp,
+                     image_url=EXCLUDED.image_url, ticket_url=EXCLUDED.ticket_url,
+                     tags=EXCLUDED.tags""",
+                (ev["id"], ev["title"], ev["description"], ev["category"],
+                 ev["venue"], ev["address"], ev["city"], ev["date"],
+                 ev["price_gbp"], ev["image_url"], ev["ticket_url"], ev["tags"]),
+            )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        cur.close()
+        conn.close()
+
+
+class EventGenerateRequest(BaseModel):
+    city: str
+
+
+@app.post("/events/generate")
+@newrelic.agent.function_trace()
+def generate_events(req: EventGenerateRequest):
+    city = req.city.strip().title()
+    log.info(f"Generating events for city: {city}")
+    newrelic.agent.add_custom_attribute("city", city)
+
+    source = "ticketmaster"
+    events = _fetch_tm_city(city) if TM_API_KEY else []
+
+    if not events:
+        source = "gemini"
+        log.info(f"TM returned nothing for {city}, using Gemini")
+        events = _fetch_gemini_city(city)
+
+    if events:
+        _write_events_to_db(events, city)
+        log.info(f"Stored {len(events)} events for {city} (source: {source})")
+
+    newrelic.agent.add_custom_attribute("events_count", len(events))
+    newrelic.agent.add_custom_attribute("source", source)
+    return {"city": city, "count": len(events), "source": source}

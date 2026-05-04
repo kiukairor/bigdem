@@ -59,6 +59,36 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.secrets.redis }}
                   key: port
+            - name: TICKETMASTER_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.ticketmaster }}
+                  key: api-key
+            - name: POSTGRES_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.postgres }}
+                  key: host
+            - name: POSTGRES_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.postgres }}
+                  key: port
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.postgres }}
+                  key: username
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.postgres }}
+                  key: password
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.postgres }}
+                  key: database
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           livenessProbe:

@@ -32,6 +32,33 @@
   margin-left: 0.25rem;
 }
 
+.cityForm {
+  display: flex;
+  align-items: center;
+  margin-left: 0.15rem;
+}
+
+.cityInput {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  padding: 0.2rem 0.55rem;
+  width: 88px;
+  outline: none;
+  transition: border-color 0.15s, color 0.15s;
+}
+.cityInput::placeholder { color: var(--text-dim); font-weight: 400; }
+.cityInput:focus { border-color: var(--text-dim); }
+.cityInput:disabled { opacity: 0.5; cursor: not-allowed; }
+.cityInputActive {
+  border-color: var(--accent) !important;
+  color: var(--accent);
+}
+
 .cityBtn {
   background: none;
   border: 1px solid transparent;

@@ -40,4 +40,5 @@ secrets:
   redis: redis-secret
   anthropic: anthropic-secret
   gemini: gemini-secret
+  ticketmaster: ticketmaster-secret
   app: app-secret
