@@ -49,6 +49,16 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.secrets.gemini }}
                   key: api-key
+            - name: REDIS_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.redis }}
+                  key: host
+            - name: REDIS_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.redis }}
+                  key: port
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           livenessProbe:
