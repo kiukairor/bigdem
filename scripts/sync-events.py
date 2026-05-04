@@ -99,11 +99,13 @@ def sq(s: str) -> str:
 
 
 def emit_sql(events: list[dict]) -> None:
+    cities = list({sq(ev["city"]) for ev in events})
+    city_list = ", ".join(f"'{c}'" for c in cities)
     print("BEGIN;")
     print()
-    print("-- Remove past events and their saves; upsert fresh ones")
-    print("DELETE FROM saved_events WHERE event_id IN (SELECT id FROM events WHERE date < NOW());")
-    print("DELETE FROM events WHERE date < NOW();")
+    print(f"-- Full replacement for cities: {city_list}")
+    print(f"DELETE FROM saved_events WHERE event_id IN (SELECT id FROM events WHERE city IN ({city_list}));")
+    print(f"DELETE FROM events WHERE city IN ({city_list});")
     print()
     for ev in events:
         tags = "ARRAY[" + ", ".join(f"'{sq(t)}'" for t in ev["tags"]) + "]"
@@ -149,9 +151,10 @@ def execute_to_db(events: list[dict]) -> None:
     )
     conn.autocommit = False
     cur = conn.cursor()
+    cities = list({ev["city"] for ev in events})
     try:
-        cur.execute("DELETE FROM saved_events WHERE event_id IN (SELECT id FROM events WHERE date < NOW())")
-        cur.execute("DELETE FROM events WHERE date < NOW()")
+        cur.execute("DELETE FROM saved_events WHERE event_id IN (SELECT id FROM events WHERE city = ANY(%s))", (cities,))
+        cur.execute("DELETE FROM events WHERE city = ANY(%s)", (cities,))
         for ev in events:
             cur.execute(
                 """

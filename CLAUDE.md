@@ -270,7 +270,7 @@ Custom NR metrics: `Custom/AICircuitBreaker/State`, `Custom/AI/ResponseMs`, `Cus
 - [ ] NR dashboards: circuit breaker, opt-out rate, AI latency, token cost
 - [ ] NR alerts: error rate > 5%, p99 > 3s, memory > 80%
 - [ ] Simple auth: username + password (no email)
-- [ ] Real location: city picker dropdown
+- [ ] Free-text city input (see design note below)
 
 ### 🔲 Week 4
 - [ ] Bug scenarios 4-5
@@ -343,7 +343,7 @@ kubectl get applications -n argocd
 ## Upgrade Path (do not implement yet)
 
 1. **Real auth** — users table schema already supports it, session-svc will add JWT
-2. **Real location** — DEMO_CITY env var already abstracted, swap to geolocation
+2. **Free-text city input** — swap the London/Paris dropdown for a text input; event-svc returns `[]` for unknown cities; frontend calls `POST /api/ai-svc/events/generate?city=X` which runs the Gemini sync prompt on demand and stores results; sync-events CronJob queries `SELECT DISTINCT city FROM events` at runtime to refresh all known cities. Cost: ~$0.001 per new city typed. No schema changes needed.
 3. **Richer events** — event-svc data layer isolated, enrich Gemini prompt for images/ticket URLs or swap for a real API
 4. **Richer AI profiles** — Claude prompt already receives user.preferences, just enrich
 5. **Multi-user** — DEMO_USER_ID env var already abstracted
