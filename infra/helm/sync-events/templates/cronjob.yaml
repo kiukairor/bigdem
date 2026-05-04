@@ -31,6 +31,11 @@ spec:
                 - name: {{ $key }}
                   value: {{ $val | quote }}
                 {{- end }}
+                - name: TICKETMASTER_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.secrets.ticketmaster }}
+                      key: api-key
                 - name: GEMINI_API_KEY
                   valueFrom:
                     secretKeyRef:

@@ -14,3 +14,4 @@ env:
 secrets:
   postgres: postgres-secret
   gemini: gemini-secret
+  ticketmaster: ticketmaster-secret
