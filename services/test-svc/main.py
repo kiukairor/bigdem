@@ -5,7 +5,7 @@ from google import genai
 
 app = FastAPI()
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY", ""))
-MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-lite")
+MODEL = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite-preview")
 
 
 class PromptRequest(BaseModel):
