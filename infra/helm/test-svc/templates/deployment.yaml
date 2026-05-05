@@ -32,6 +32,11 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.secrets.gemini }}
                   key: api-key
+            - name: NEW_RELIC_LICENSE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.newrelic }}
+                  key: license-key
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           livenessProbe:
