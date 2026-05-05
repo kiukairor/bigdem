@@ -64,6 +64,7 @@ jobs:
             NEXT_PUBLIC_NR_BROWSER_APP_ID=538847158
             NEXT_PUBLIC_NR_BROWSER_ACCOUNT_ID=7697931
             NEXT_PUBLIC_NR_BROWSER_TRUST_KEY=7697931
+            NEXT_PUBLIC_TEST_SVC_URL=https://pulse.test:30443/api/test-svc
 
   update-image-tag:
     needs: build

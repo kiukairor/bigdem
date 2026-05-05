@@ -1,8 +1,11 @@
 import os
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from google import genai
+from google.genai import types as genai_types
+from anthropic import Anthropic
+from openai import OpenAI
 
 app = FastAPI()
 app.add_middleware(
@@ -12,8 +15,29 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY", ""))
-MODEL = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite-preview")
+gemini_client    = genai.Client(api_key=os.getenv("GEMINI_API_KEY", ""))
+anthropic_client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
+openai_client    = OpenAI(api_key=os.getenv("OPENAI_API_KEY", ""))
+
+DEFAULT_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite-preview")
+
+SYSTEM_PROMPT = (
+    "You are an AI assistant for PULSE, an urban events discovery app. "
+    "You help users find and explore events happening in cities worldwide — "
+    "concerts, exhibitions, food & drink events, sports, tech meetups, nightlife, arts, and more. "
+    "Only answer questions related to events, venues, activities, entertainment, culture, "
+    "city exploration, and recommendations. "
+    "If asked about anything unrelated to events or city life, politely decline and "
+    "redirect the conversation back to helping the user discover events."
+)
+
+
+def _provider(model: str) -> str:
+    if model.startswith("gemini"):
+        return "gemini"
+    if model.startswith("claude"):
+        return "claude"
+    return "openai"
 
 
 class PromptRequest(BaseModel):
@@ -22,6 +46,7 @@ class PromptRequest(BaseModel):
 
 class ChatRequest(BaseModel):
     message: str
+    model: str = DEFAULT_MODEL
 
 
 @app.get("/health")
@@ -31,11 +56,39 @@ def health():
 
 @app.post("/generate")
 async def generate(req: PromptRequest):
-    response = client.models.generate_content(model=MODEL, contents=req.prompt)
+    response = gemini_client.models.generate_content(model=DEFAULT_MODEL, contents=req.prompt)
     return {"result": response.text}
 
 
 @app.post("/chat")
 async def chat(req: ChatRequest):
-    response = client.models.generate_content(model=MODEL, contents=req.message)
-    return {"reply": response.text, "model": MODEL}
+    provider = _provider(req.model)
+
+    if provider == "gemini":
+        response = gemini_client.models.generate_content(
+            model=req.model,
+            contents=req.message,
+            config=genai_types.GenerateContentConfig(system_instruction=SYSTEM_PROMPT),
+        )
+        reply = response.text
+
+    elif provider == "claude":
+        response = anthropic_client.messages.create(
+            model=req.model,
+            max_tokens=1024,
+            system=SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": req.message}],
+        )
+        reply = response.content[0].text
+
+    else:
+        response = openai_client.chat.completions.create(
+            model=req.model,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": req.message},
+            ],
+        )
+        reply = response.choices[0].message.content
+
+    return {"reply": reply, "model": req.model, "provider": provider}

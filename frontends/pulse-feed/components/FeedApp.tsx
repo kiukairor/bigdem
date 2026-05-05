@@ -5,6 +5,7 @@ import EventDetailModal from './EventDetailModal'
 import RecommendationPanel from './RecommendationPanel'
 import SavedPanel from './SavedPanel'
 import AIToggle from './AIToggle'
+import ChatModal from './ChatModal'
 import styles from './FeedApp.module.css'
 import { initNRMicroAgent } from '../lib/nr-micro-agent'
 
@@ -42,6 +43,7 @@ export default function FeedApp({ city = 'London' }: FeedAppProps) {
   const [user, setUser] = useState<any>(null)
   const [selectedEvent, setSelectedEvent] = useState<any>(null)
   const [liveRefresh, setLiveRefresh] = useState(false)
+  const [chatOpen, setChatOpen] = useState(false)
 
   useEffect(() => { initNRMicroAgent() }, [])
 
@@ -278,6 +280,12 @@ export default function FeedApp({ city = 'London' }: FeedAppProps) {
           onClose={() => setSelectedEvent(null)}
         />
       )}
+
+      <button className={styles.chatBtn} onClick={() => setChatOpen(true)} title="Ask about events">
+        ✦ CHAT
+      </button>
+
+      {chatOpen && <ChatModal onClose={() => setChatOpen(false)} />}
     </div>
   )
 }

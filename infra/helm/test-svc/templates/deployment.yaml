@@ -37,6 +37,17 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.secrets.newrelic }}
                   key: license-key
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.anthropic }}
+                  key: api-key
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.openai }}
+                  key: api-key
+                  optional: true
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           livenessProbe:
