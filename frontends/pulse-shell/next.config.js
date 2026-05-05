@@ -10,6 +10,7 @@ module.exports = {
       { source: '/api/event-svc/:path*',  destination: 'http://event-svc:8080/:path*' },
       { source: '/api/ai-svc/:path*',     destination: 'http://ai-svc:8082/:path*' },
       { source: '/api/session-svc/:path*', destination: 'http://session-svc:8081/:path*' },
+      { source: '/api/test-svc/:path*',   destination: 'http://test-svc:8090/:path*' },
     ];
   },
   webpack(config, options) {
