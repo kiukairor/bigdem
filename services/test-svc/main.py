@@ -17,7 +17,8 @@ app.add_middleware(
 
 gemini_client    = genai.Client(api_key=os.getenv("GEMINI_API_KEY", ""))
 anthropic_client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
-openai_client    = OpenAI(api_key=os.getenv("OPENAI_API_KEY", ""))
+_openai_key      = os.getenv("OPENAI_API_KEY", "")
+openai_client    = OpenAI(api_key=_openai_key) if _openai_key else None
 
 DEFAULT_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite-preview")
 
@@ -82,6 +83,8 @@ async def chat(req: ChatRequest):
         reply = response.content[0].text
 
     else:
+        if not openai_client:
+            raise HTTPException(status_code=503, detail="OpenAI key not configured")
         response = openai_client.chat.completions.create(
             model=req.model,
             messages=[
