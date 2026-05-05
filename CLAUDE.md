@@ -174,6 +174,52 @@ git push → GitHub Actions
          → ArgoCD detects drift → deploys to Pi
 ```
 
+### Recovery commands
+
+**Revert last commit and redeploy (safest — keeps history):**
+```bash
+git revert HEAD --no-edit
+git push origin main
+# CI rebuilds previous code → ArgoCD redeploys automatically
+```
+
+**Revert a specific commit by hash:**
+```bash
+git revert <commit-sha> --no-edit
+git push origin main
+```
+
+**Find commit hashes:**
+```bash
+git log --oneline -10
+```
+
+**Roll back a service to a previous image tag without reverting code:**
+```bash
+# Edit infra/helm/<svc>/values.yaml — set tag to previous sha
+git add infra/helm/<svc>/values.yaml
+git commit -m "chore: rollback <svc> to <sha>"
+git push origin main
+# ArgoCD detects the tag change and redeploys the old image — no CI build needed
+```
+
+**Force ArgoCD to sync immediately (without waiting for drift detection):**
+```bash
+kubectl patch application <app-name> -n argocd --type merge \
+  -p '{"operation":{"initiatedBy":{"username":"admin"},"sync":{"syncStrategy":{"hook":{}}}}}'
+```
+
+**Cancel a running CI build:**
+```bash
+gh run cancel <run-id> --repo kiukairor/bigdem
+# Find run-id with: gh run list --repo kiukairor/bigdem --limit=5
+```
+
+**Check what image is currently running on a pod:**
+```bash
+kubectl get deployment <svc> -n pulse-prod -o jsonpath='{.spec.template.spec.containers[0].image}'
+```
+
 ---
 
 ## Config & Secrets
