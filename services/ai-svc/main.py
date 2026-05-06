@@ -1,10 +1,12 @@
+import newrelic.agent
+newrelic.agent.initialize()
+
 import os
 import re
 import json
 import time
 import logging
 import requests as http_requests
-import newrelic.agent
 import redis as redis_lib
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,8 +16,6 @@ from anthropic import Anthropic, APIError as AnthropicAPIError
 from google import genai as google_genai
 from openai import OpenAI
 from circuit_breaker import CircuitBreaker
-
-newrelic.agent.initialize()
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 log = logging.getLogger("ai-svc")
