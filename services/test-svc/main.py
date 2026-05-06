@@ -107,6 +107,8 @@ async def chat(req: ChatRequest):
     if req.city:
         system += _fetch_events_context(req.city)
 
+    input_tokens = output_tokens = 0
+
     if provider == "gemini":
         response = gemini_client.models.generate_content(
             model=req.model,
@@ -114,6 +116,9 @@ async def chat(req: ChatRequest):
             config=genai_types.GenerateContentConfig(system_instruction=system),
         )
         reply = response.text
+        if getattr(response, "usage_metadata", None):
+            input_tokens  = response.usage_metadata.prompt_token_count or 0
+            output_tokens = response.usage_metadata.candidates_token_count or 0
 
     elif provider == "claude":
         response = anthropic_client.messages.create(
@@ -123,6 +128,9 @@ async def chat(req: ChatRequest):
             messages=[{"role": "user", "content": req.message}],
         )
         reply = response.content[0].text
+        if getattr(response, "usage", None):
+            input_tokens  = response.usage.input_tokens or 0
+            output_tokens = response.usage.output_tokens or 0
 
     else:
         if not openai_client:
@@ -135,17 +143,36 @@ async def chat(req: ChatRequest):
             ],
         )
         reply = response.choices[0].message.content
+        if getattr(response, "usage", None):
+            input_tokens  = response.usage.prompt_tokens or 0
+            output_tokens = response.usage.completion_tokens or 0
 
     trace_id = newrelic.agent.current_trace_id()
-    log.info(f"Chat response: model={req.model} provider={provider} trace_id={trace_id}")
+    total_tokens = input_tokens + output_tokens
+    newrelic.agent.add_custom_attribute("llm.model", req.model)
+    newrelic.agent.add_custom_attribute("llm.provider", provider)
+    newrelic.agent.add_custom_attribute("llm.input_tokens", input_tokens)
+    newrelic.agent.add_custom_attribute("llm.output_tokens", output_tokens)
+    newrelic.agent.add_custom_attribute("llm.total_tokens", total_tokens)
+    newrelic.agent.record_custom_metric("Custom/LLM/InputTokens", input_tokens)
+    newrelic.agent.record_custom_metric("Custom/LLM/OutputTokens", output_tokens)
+    log.info(
+        f"Chat response: model={req.model} provider={provider} trace_id={trace_id} "
+        f"tokens={input_tokens}+{output_tokens}={total_tokens}"
+    )
     return {"reply": reply, "model": req.model, "provider": provider, "trace_id": trace_id}
 
 
 @app.post("/chat/feedback", status_code=204)
 async def chat_feedback(req: FeedbackRequest):
+    # NR maps "Good"/"Bad" (capitalized) to positive/negative sentiment in the UI.
+    # Normalize frontend values "good"/"bad" to the expected form.
+    _RATING_MAP = {"good": "Good", "bad": "Bad", "positive": "Good", "negative": "Bad"}
+    rating = _RATING_MAP.get(req.rating.lower(), req.rating.capitalize())
+    log.info(f"Chat feedback: raw={req.rating} normalized={rating} trace_id={req.trace_id}")
     newrelic.agent.record_llm_feedback_event(
         trace_id=req.trace_id,
-        rating=req.rating,
+        rating=rating,
         message=req.message,
         metadata={"source": "pulse-chat"},
     )

@@ -328,11 +328,29 @@ def _parse_recs(raw: str, req: RecommendationRequest) -> list[dict]:
     ]
 
 
+def _record_tokens(provider: str, model: str, input_tokens: int, output_tokens: int) -> None:
+    total = input_tokens + output_tokens
+    newrelic.agent.add_custom_attribute("llm.provider", provider)
+    newrelic.agent.add_custom_attribute("llm.model", model)
+    newrelic.agent.add_custom_attribute("llm.input_tokens", input_tokens)
+    newrelic.agent.add_custom_attribute("llm.output_tokens", output_tokens)
+    newrelic.agent.add_custom_attribute("llm.total_tokens", total)
+    newrelic.agent.record_custom_metric("Custom/LLM/InputTokens", input_tokens)
+    newrelic.agent.record_custom_metric("Custom/LLM/OutputTokens", output_tokens)
+    log.info(f"LLM tokens: provider={provider} model={model} in={input_tokens} out={output_tokens} total={total}")
+
+
 def call_gemini(req: RecommendationRequest) -> list[dict]:
     response = gemini_client.models.generate_content(
         model=GEMINI_MODEL,
         contents=_build_prompt(req),
     )
+    if getattr(response, "usage_metadata", None):
+        _record_tokens(
+            "gemini", GEMINI_MODEL,
+            response.usage_metadata.prompt_token_count or 0,
+            response.usage_metadata.candidates_token_count or 0,
+        )
     return _parse_recs(response.text, req)
 
 
@@ -342,6 +360,12 @@ def call_claude(req: RecommendationRequest) -> list[dict]:
         max_tokens=256,
         messages=[{"role": "user", "content": _build_prompt(req)}],
     )
+    if getattr(response, "usage", None):
+        _record_tokens(
+            "claude", CLAUDE_MODEL,
+            response.usage.input_tokens or 0,
+            response.usage.output_tokens or 0,
+        )
     return _parse_recs(response.content[0].text, req)
 
 
@@ -351,6 +375,12 @@ def call_openai(req: RecommendationRequest) -> list[dict]:
         max_tokens=256,
         messages=[{"role": "user", "content": _build_prompt(req)}],
     )
+    if getattr(response, "usage", None):
+        _record_tokens(
+            "openai", OPENAI_MODEL,
+            response.usage.prompt_tokens or 0,
+            response.usage.completion_tokens or 0,
+        )
     return _parse_recs(response.choices[0].message.content, req)
 
 
