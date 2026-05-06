@@ -10,8 +10,9 @@ from pydantic import BaseModel
 from typing import Optional
 from google import genai
 from google.genai import types as genai_types
-from anthropic import Anthropic
 from openai import OpenAI
+from langchain_anthropic import ChatAnthropic
+from langchain_core.messages import HumanMessage, SystemMessage
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 log = logging.getLogger("test-svc")
@@ -24,10 +25,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-gemini_client    = genai.Client(api_key=os.getenv("GEMINI_API_KEY", ""))
-anthropic_client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
-_openai_key      = os.getenv("OPENAI_API_KEY", "")
-openai_client    = OpenAI(api_key=_openai_key) if _openai_key else None
+gemini_client = genai.Client(api_key=os.getenv("GEMINI_API_KEY", ""))
+_openai_key   = os.getenv("OPENAI_API_KEY", "")
+openai_client = OpenAI(api_key=_openai_key) if _openai_key else None
 
 DEFAULT_MODEL  = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite-preview")
 EVENT_SVC_URL  = os.getenv("EVENT_SVC_URL", "http://event-svc:8080")
@@ -123,16 +123,12 @@ async def chat(req: ChatRequest):
             output_tokens = response.usage_metadata.candidates_token_count or 0
 
     elif provider == "claude":
-        response = anthropic_client.messages.create(
-            model=req.model,
-            max_tokens=1024,
-            system=system,
-            messages=[{"role": "user", "content": req.message}],
-        )
-        reply = response.content[0].text
-        if getattr(response, "usage", None):
-            input_tokens  = response.usage.input_tokens or 0
-            output_tokens = response.usage.output_tokens or 0
+        llm = ChatAnthropic(model=req.model, max_tokens=1024)
+        lc_response = llm.invoke([SystemMessage(content=system), HumanMessage(content=req.message)])
+        reply = lc_response.content
+        if lc_response.usage_metadata:
+            input_tokens  = lc_response.usage_metadata.get("input_tokens", 0)
+            output_tokens = lc_response.usage_metadata.get("output_tokens", 0)
 
     else:
         if not openai_client:

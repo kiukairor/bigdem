@@ -12,9 +12,10 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
-from anthropic import Anthropic, APIError as AnthropicAPIError
 from google import genai as google_genai
 from openai import OpenAI
+from langchain_anthropic import ChatAnthropic
+from langchain_core.messages import HumanMessage
 from circuit_breaker import CircuitBreaker
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -23,8 +24,8 @@ log = logging.getLogger("ai-svc")
 app = FastAPI(title="pulse-ai-svc")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-anthropic_client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
 gemini_client = google_genai.Client(api_key=os.getenv("GEMINI_API_KEY", ""))
+claude_llm     = ChatAnthropic(model=os.getenv("CLAUDE_MODEL", "claude-sonnet-4-6"), max_tokens=256)
 _openai_key   = os.getenv("OPENAI_API_KEY", "")
 openai_client = OpenAI(api_key=_openai_key) if _openai_key else None
 
@@ -356,18 +357,14 @@ def call_gemini(req: RecommendationRequest) -> list[dict]:
 
 
 def call_claude(req: RecommendationRequest) -> list[dict]:
-    response = anthropic_client.messages.create(
-        model=CLAUDE_MODEL,
-        max_tokens=256,
-        messages=[{"role": "user", "content": _build_prompt(req)}],
-    )
-    if getattr(response, "usage", None):
+    response = claude_llm.invoke([HumanMessage(content=_build_prompt(req))])
+    if response.usage_metadata:
         _record_tokens(
             "claude", CLAUDE_MODEL,
-            response.usage.input_tokens or 0,
-            response.usage.output_tokens or 0,
+            response.usage_metadata.get("input_tokens", 0),
+            response.usage_metadata.get("output_tokens", 0),
         )
-    return _parse_recs(response.content[0].text, req)
+    return _parse_recs(response.content, req)
 
 
 def call_openai(req: RecommendationRequest) -> list[dict]:
