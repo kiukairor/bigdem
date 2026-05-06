@@ -26,9 +26,10 @@ interface Message {
 
 interface Props {
   onClose: () => void
+  city?: string
 }
 
-export default function ChatModal({ onClose }: Props) {
+export default function ChatModal({ onClose, city }: Props) {
   const [messages, setMessages]   = useState<Message[]>([])
   const [input, setInput]         = useState('')
   const [model, setModel]         = useState(MODELS[0].value)
@@ -50,7 +51,7 @@ export default function ChatModal({ onClose }: Props) {
       const res = await fetch(`${TEST_SVC}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: msg, model }),
+        body: JSON.stringify({ message: msg, model, city }),
       })
       if (!res.ok) throw new Error(`${res.status}`)
       const data = await res.json()

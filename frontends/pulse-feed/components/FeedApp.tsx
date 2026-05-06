@@ -110,8 +110,7 @@ export default function FeedApp({ city = 'London' }: FeedAppProps) {
         body: JSON.stringify({
           user_id: usr.id,
           user_preferences: usr.preferences,
-          saved_event_ids: savedIds,
-          available_events: allEvents,
+          session_id: sessionId || undefined,
           city,
           provider,
         }),
@@ -335,7 +334,7 @@ export default function FeedApp({ city = 'London' }: FeedAppProps) {
         ✦ CHAT
       </button>
 
-      {chatOpen && <ChatModal onClose={() => setChatOpen(false)} />}
+      {chatOpen && <ChatModal city={city} onClose={() => setChatOpen(false)} />}
     </div>
   )
 }

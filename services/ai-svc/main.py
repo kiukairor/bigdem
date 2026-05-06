@@ -37,6 +37,8 @@ GEMINI_MODEL     = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite-preview")
 OPENAI_MODEL     = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 DEFAULT_PROVIDER = os.getenv("AI_PROVIDER", "gemini")
 DEMO_CITY        = os.getenv("DEMO_CITY", "London")
+EVENT_SVC_URL    = os.getenv("EVENT_SVC_URL", "http://event-svc:8080")
+SESSION_SVC_URL  = os.getenv("SESSION_SVC_URL", "http://session-svc:8081")
 REC_CACHE_TTL    = 300
 BUG_AI_SLOW      = os.getenv("BUG_AI_SLOW", "false").lower() == "true"
 TM_API_KEY       = os.getenv("TICKETMASTER_API_KEY", "")
@@ -61,9 +63,11 @@ except Exception as e:
 class RecommendationRequest(BaseModel):
     user_id: str
     user_preferences: dict
-    saved_event_ids: list[str]
-    available_events: list[dict]
-    provider: Optional[str] = None  # "gemini" or "claude"; falls back to AI_PROVIDER env
+    saved_event_ids: list[str] = []
+    available_events: list[dict] = []
+    provider: Optional[str] = None
+    session_id: Optional[str] = None
+    city: Optional[str] = None
 
 
 class RecommendationResponse(BaseModel):
@@ -71,6 +75,38 @@ class RecommendationResponse(BaseModel):
     mode: str  # "ai", "degraded", "fallback"
     ai_response_ms: Optional[int] = None
     provider: Optional[str] = None
+
+
+def _fetch_events_from_event_svc(city: str) -> list[dict]:
+    try:
+        resp = http_requests.get(
+            f"{EVENT_SVC_URL}/events",
+            params={"city": city},
+            timeout=5,
+        )
+        resp.raise_for_status()
+        events = resp.json()
+        log.info(f"Fetched {len(events)} events from event-svc: city={city}")
+        return events
+    except Exception as e:
+        log.warning(f"Failed to fetch events from event-svc: city={city} error={e}")
+        return []
+
+
+def _fetch_saved_from_session_svc(session_id: str) -> list[str]:
+    try:
+        resp = http_requests.get(
+            f"{SESSION_SVC_URL}/sessions/{session_id}",
+            timeout=5,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        saved = data.get("saved_event_ids", [])
+        log.info(f"Fetched {len(saved)} saved events from session-svc: session={session_id}")
+        return saved
+    except Exception as e:
+        log.warning(f"Failed to fetch saved events from session-svc: session={session_id} error={e}")
+        return []
 
 
 @app.get("/health")
@@ -93,7 +129,25 @@ def status():
 def get_recommendations(req: RecommendationRequest):
     start = time.time()
     provider = req.provider or DEFAULT_PROVIDER
-    city = req.user_preferences.get("city", DEMO_CITY)
+    city = req.city or req.user_preferences.get("city", DEMO_CITY)
+
+    # Fetch data from internal services when not supplied by the caller — creates
+    # real service-to-service spans visible in NR Service Maps
+    available_events = req.available_events
+    if not available_events:
+        log.info(f"No events in request — fetching from event-svc: city={city}")
+        available_events = _fetch_events_from_event_svc(city)
+
+    saved_event_ids = req.saved_event_ids
+    if not saved_event_ids and req.session_id:
+        log.info(f"No saved IDs in request — fetching from session-svc: session={req.session_id}")
+        saved_event_ids = _fetch_saved_from_session_svc(req.session_id)
+
+    req = req.model_copy(update={
+        "available_events": available_events,
+        "saved_event_ids": saved_event_ids,
+    })
+
     cache_key = f"rec:{req.user_id}:{city}:{provider}"
 
     newrelic.agent.add_custom_attribute("user_id", req.user_id)
@@ -224,10 +278,10 @@ def call_ai(req: RecommendationRequest, provider: str) -> list[dict]:
 
 def _build_prompt(req: RecommendationRequest) -> str:
     prefs = req.user_preferences
+    city = req.city or prefs.get("city", DEMO_CITY)
     saved_ids = set(req.saved_event_ids)
     event_map = {e["id"]: e for e in req.available_events}
 
-    # Enrich saved event IDs with actual event details so the AI understands the user's taste
     saved_details = [
         f"  - {event_map[eid]['title']} ({event_map[eid]['category']}) at {event_map[eid]['venue']}"
         for eid in saved_ids
@@ -241,7 +295,7 @@ def _build_prompt(req: RecommendationRequest) -> str:
             f"- [{e['id']}] {e['title']} ({e['category']}) on {e['date'][:10]} "
             f"at {e['venue']} — £{e.get('price_gbp', 0) or 0}"
         )
-    return f"""You are a personalised event recommendation engine for {DEMO_CITY}.
+    return f"""You are a personalised event recommendation engine for {city}.
 
 User preferences:
 - Favourite categories: {prefs.get('categories', [])}
