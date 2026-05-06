@@ -1,6 +1,8 @@
+import newrelic.agent
+newrelic.agent.initialize()
+
 import os
 import logging
-import newrelic.agent
 import requests as http_requests
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
