@@ -96,18 +96,23 @@ export default function ProfileApp() {
   }, [])
 
   const handleUnsave = async (eventId: string) => {
+    const evt = savedEvents.find(e => e.id === eventId)
+    console.info(`[pulse-profile] Removing saved event: id=${eventId} title="${evt?.title}" category=${evt?.category}`)
     setSavedEvents(prev => prev.filter(e => e.id !== eventId))
     try {
       await fetch(`${EVENT_SVC}/user/saved-events/${eventId}`, { method: 'DELETE' })
       if (sessionId) {
         await fetch(`${SESSION_SVC}/sessions/${sessionId}/saved-events/${eventId}`, { method: 'DELETE' })
       }
-    } catch {
-      // best-effort
+      console.info(`[pulse-profile] Event removed OK: id=${eventId}`)
+    } catch (err) {
+      console.error(`[pulse-profile] Failed to remove event id=${eventId}: ${err}`)
     }
   }
 
   const toggleCategory = (cat: string) => {
+    const willAdd = !prefCategories.includes(cat)
+    console.info(`[pulse-profile] Preference category ${willAdd ? 'added' : 'removed'}: ${cat}`)
     setPrefCategories(prev =>
       prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]
     )
@@ -115,6 +120,7 @@ export default function ProfileApp() {
   }
 
   const savePreferences = async () => {
+    console.info(`[pulse-profile] Saving preferences: categories=${JSON.stringify(prefCategories)}`)
     setPrefSaving(true)
     try {
       await fetch(`${EVENT_SVC}/user/preferences`, {
@@ -122,9 +128,10 @@ export default function ProfileApp() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ categories: prefCategories }),
       })
+      console.info(`[pulse-profile] Preferences saved OK`)
       setPrefSaved(true)
-    } catch {
-      // best-effort
+    } catch (err) {
+      console.error(`[pulse-profile] Failed to save preferences: ${err}`)
     } finally {
       setPrefSaving(false)
     }

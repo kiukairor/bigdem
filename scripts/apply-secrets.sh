@@ -18,6 +18,16 @@ export $(grep -v '^#' "$CONFIG_FILE" | grep -v '^$' | xargs)
 
 echo "Applying secrets to namespace: $NAMESPACE"
 
+# Eventbrite
+kubectl create secret generic eventbrite-secret \
+  --from-literal=api-key="$EVENTBRITE_API_KEY" \
+  -n "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+
+# OpenAI
+kubectl create secret generic openai-secret \
+  --from-literal=api-key="$OPENAI_API_KEY" \
+  -n "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+
 # Anthropic
 kubectl create secret generic anthropic-secret \
   --from-literal=api-key="$ANTHROPIC_API_KEY" \

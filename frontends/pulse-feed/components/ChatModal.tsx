@@ -43,6 +43,7 @@ export default function ChatModal({ onClose }: Props) {
     setInput('')
     setMessages(prev => [...prev, { role: 'user', content: msg }])
     setLoading(true)
+    console.info(`[pulse-feed] Chat message sent: model=${model} length=${msg.length}`)
     try {
       const res = await fetch(`${TEST_SVC}/chat`, {
         method: 'POST',
@@ -51,8 +52,10 @@ export default function ChatModal({ onClose }: Props) {
       })
       if (!res.ok) throw new Error(`${res.status}`)
       const data = await res.json()
+      console.info(`[pulse-feed] Chat response received: model=${data.model} reply_length=${data.reply?.length}`)
       setMessages(prev => [...prev, { role: 'assistant', content: data.reply, model: data.model }])
     } catch (e) {
+      console.error(`[pulse-feed] Chat request failed: model=${model} error=${e}`)
       setMessages(prev => [...prev, { role: 'assistant', content: 'Something went wrong. Please try again.' }])
     } finally {
       setLoading(false)

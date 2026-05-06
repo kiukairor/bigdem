@@ -102,6 +102,7 @@ export default function FeedApp({ city = 'London' }: FeedAppProps) {
 
   const fetchRecommendations = async (allEvents: any[], usr: any, provider = aiProvider) => {
     setRecsLoading(true)
+    console.info(`[pulse-feed] Fetching AI recommendations: provider=${provider} user=${usr.id} events=${allEvents.length} city=${city}`)
     try {
       const res = await fetch(`${AI_SVC}/recommendations`, {
         method: 'POST',
@@ -119,7 +120,11 @@ export default function FeedApp({ city = 'London' }: FeedAppProps) {
       const data = await res.json()
       setRecommendations(data.recommendations)
       setAiMode(data.mode)
-    } catch {
+      console.info(`[pulse-feed] Recommendations received: count=${data.recommendations.length} mode=${data.mode} provider=${data.provider}`)
+      ;(window as any).newrelic?.addPageAction('pulse.recommendations_received', { count: data.recommendations.length, mode: data.mode, provider: data.provider, city })
+    } catch (err) {
+      console.error(`[pulse-feed] Recommendations fetch failed: ${err}`)
+      ;(window as any).newrelic?.addPageAction('pulse.recommendations_error', { provider, city, error: String(err) })
       setAiMode('fallback')
     } finally {
       setRecsLoading(false)
@@ -128,12 +133,20 @@ export default function FeedApp({ city = 'London' }: FeedAppProps) {
 
   const handleSave = async (id: string) => {
     const isSaved = savedIds.includes(id)
+    const evt = (events as any[]).find(e => e.id === id)
+
+    if (isSaved) {
+      console.info(`[pulse-feed] Unsaving event: id=${id} category=${evt?.category} title="${evt?.title}"`)
+      ;(window as any).newrelic?.addPageAction('pulse.event_unsave', { event_id: id, category: evt?.category })
+    } else {
+      console.info(`[pulse-feed] Saving event: id=${id} category=${evt?.category} title="${evt?.title}"`)
+      ;(window as any).newrelic?.addPageAction('pulse.event_save', { event_id: id, category: evt?.category })
+    }
 
     // BUG_TECH_SAVE: saving a tech event crashes before the optimistic update fires.
     // The TypeError (metadata.tags on undefined) is an unhandled promise rejection →
     // NR Browser SPA agent captures it in JS Errors. Event never appears in My Events.
     if (!isSaved) {
-      const evt = (events as any[]).find(e => e.id === id)
       if (evt?.category === 'tech') {
         const tags = (evt as any).metadata.tags   // metadata is undefined → TypeError
         console.log('enriching save payload:', tags)
@@ -141,7 +154,10 @@ export default function FeedApp({ city = 'London' }: FeedAppProps) {
     }
 
     setSavedIds(prev => isSaved ? prev.filter(x => x !== id) : [...prev, id])
-    if (!sessionId) return
+    if (!sessionId) {
+      console.warn(`[pulse-feed] No active session — save/unsave not persisted for event=${id}`)
+      return
+    }
     try {
       const sessionCall = isSaved
         ? fetch(`${SESSION_SVC}/sessions/${sessionId}/saved-events/${id}`, { method: 'DELETE' })
@@ -159,7 +175,10 @@ export default function FeedApp({ city = 'London' }: FeedAppProps) {
           })
       const [sessionRes] = await Promise.all([sessionCall, eventSvcCall.catch(() => null)])
       if (!sessionRes.ok) throw new Error('session-svc save failed')
-    } catch {
+      console.info(`[pulse-feed] Event ${isSaved ? 'unsaved' : 'saved'} OK: id=${id}`)
+    } catch (err) {
+      console.error(`[pulse-feed] Save/unsave failed for event=${id}: ${err}`)
+      ;(window as any).newrelic?.addPageAction('pulse.event_save_error', { event_id: id, action: isSaved ? 'unsave' : 'save', error: String(err) })
       // revert on failure
       setSavedIds(prev => isSaved ? [...prev, id] : prev.filter(x => x !== id))
     }
@@ -176,11 +195,20 @@ export default function FeedApp({ city = 'London' }: FeedAppProps) {
   }, [aiEnabled, user, events, aiProvider])
 
   const handleProviderChange = (p: string) => {
+    console.info(`[pulse-feed] AI provider switched: ${aiProvider} → ${p}`)
+    ;(window as any).newrelic?.addPageAction('pulse.provider_change', { from: aiProvider, to: p })
     setAiProvider(p)
     if (aiEnabled && user) fetchRecommendations(events, user, p)
   }
 
   const handleAIToggle = async (enabled: boolean, reason?: string) => {
+    if (enabled) {
+      console.info('[pulse-feed] AI recommendations enabled')
+      ;(window as any).newrelic?.addPageAction('pulse.ai_toggle', { enabled: true })
+    } else {
+      console.warn(`[pulse-feed] AI recommendations disabled — reason=${reason}`)
+      ;(window as any).newrelic?.addPageAction('pulse.ai_toggle', { enabled: false, reason })
+    }
     setAiEnabled(enabled)
     await fetch(`${EVENT_SVC}/user/ai-preference`, {
       method: 'PUT',
@@ -210,7 +238,11 @@ export default function FeedApp({ city = 'London' }: FeedAppProps) {
               <button
                 key={cat}
                 className={`${styles.catBtn} ${category === cat ? styles.active : ''}`}
-                onClick={() => setCategory(cat)}
+                onClick={() => {
+                  console.info(`[pulse-feed] Category filter: ${cat} (city=${city})`)
+                  ;(window as any).newrelic?.addPageAction('pulse.category_filter', { category: cat, city })
+                  setCategory(cat)
+                }}
               >
                 <span>{CATEGORY_ICONS[cat]}</span> {cat.toUpperCase()}
               </button>
@@ -219,7 +251,17 @@ export default function FeedApp({ city = 'London' }: FeedAppProps) {
           <div className={styles.toolbarRight}>
             <button
               className={`${styles.liveBtn} ${liveRefresh ? styles.liveBtnActive : ''}`}
-              onClick={() => setLiveRefresh(v => !v)}
+              onClick={() => {
+                const next = !liveRefresh
+                if (next) {
+                  console.warn('[pulse-feed] LIVE refresh ENABLED — 1s polling of event-svc started')
+                  ;(window as any).newrelic?.addPageAction('pulse.live_refresh', { enabled: true, city })
+                } else {
+                  console.info('[pulse-feed] LIVE refresh disabled')
+                  ;(window as any).newrelic?.addPageAction('pulse.live_refresh', { enabled: false })
+                }
+                setLiveRefresh(next)
+              }}
               title="BUG: enables 1s polling of event-svc"
             >
               {liveRefresh ? '● LIVE' : '○ LIVE'}
@@ -281,7 +323,15 @@ export default function FeedApp({ city = 'London' }: FeedAppProps) {
         />
       )}
 
-      <button className={styles.chatBtn} onClick={() => setChatOpen(true)} title="Ask about events">
+      <button
+        className={styles.chatBtn}
+        onClick={() => {
+          console.info('[pulse-feed] Chat modal opened')
+          ;(window as any).newrelic?.addPageAction('pulse.chat_open', { city })
+          setChatOpen(true)
+        }}
+        title="Ask about events"
+      >
         ✦ CHAT
       </button>
 

@@ -12,10 +12,17 @@ const REASONS = [
 export default function AIToggle({ enabled, onToggle }: { enabled: boolean; onToggle: (v: boolean, reason?: string) => void }) {
   const [showReasons, setShowReasons] = useState(false)
 
-  const handleDisable = () => setShowReasons(true)
-  const handleEnable = () => onToggle(true)
+  const handleDisable = () => {
+    console.warn('[pulse-feed] AI toggle: user clicking to disable — showing reason picker')
+    setShowReasons(true)
+  }
+  const handleEnable = () => {
+    console.info('[pulse-feed] AI toggle: re-enabling AI recommendations')
+    onToggle(true)
+  }
 
   const handleReason = (reason: string) => {
+    console.warn(`[pulse-feed] AI toggle: user disabled AI — reason="${reason}"`)
     setShowReasons(false)
     onToggle(false, reason)
   }

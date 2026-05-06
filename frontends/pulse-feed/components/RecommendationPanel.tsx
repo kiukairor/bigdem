@@ -9,6 +9,7 @@ const MODE_LABELS: Record<string, { label: string; color: string }> = {
 const PROVIDERS = [
   { id: 'gemini', label: 'GEMINI' },
   { id: 'claude', label: 'CLAUDE' },
+  { id: 'openai', label: 'OPENAI' },
 ]
 
 interface Props {
@@ -56,7 +57,7 @@ export default function RecommendationPanel({ recommendations, loading, mode, ai
       {loading && (
         <div className={styles.loading}>
           <div className={styles.pulse} />
-          <span>Asking {provider === 'claude' ? 'Claude' : 'Gemini'}...</span>
+          <span>Asking {provider === 'claude' ? 'Claude' : provider === 'openai' ? 'GPT' : 'Gemini'}...</span>
         </div>
       )}
 

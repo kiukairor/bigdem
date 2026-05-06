@@ -71,8 +71,10 @@ def health():
 @app.post("/sessions", status_code=201)
 @newrelic.agent.function_trace()
 def create_session(req: CreateSessionRequest):
+    log.info(f"Session create request: user={req.user_id}")
     session_id = str(uuid.uuid4())
     saved_event_ids = load_saved_events_from_db(req.user_id)
+    log.info(f"Loaded {len(saved_event_ids)} saved events from DB for user={req.user_id}")
 
     session_data = {
         "session_id": session_id,
@@ -80,6 +82,7 @@ def create_session(req: CreateSessionRequest):
         "saved_event_ids": saved_event_ids,
     }
     redis_client.setex(session_key(session_id), SESSION_TTL, json.dumps(session_data))
+    log.info(f"Session stored in Redis: session_id={session_id} user={req.user_id} ttl={SESSION_TTL}s saved_events={len(saved_event_ids)}")
 
     newrelic.agent.add_custom_attribute("user_id", req.user_id)
     newrelic.agent.add_custom_attribute("session_id", session_id)
@@ -98,35 +101,45 @@ def create_session(req: CreateSessionRequest):
             "leaked_entries": len(_leak_buffer),
         })
 
-    log.info(f"Session created: {session_id} for user {req.user_id}")
+    log.info(f"Session created OK: session_id={session_id} user={req.user_id}")
     return session_data
 
 
 @app.get("/sessions/{session_id}")
 @newrelic.agent.function_trace()
 def get_session(session_id: str):
+    log.info(f"Session lookup: session_id={session_id}")
     raw = redis_client.get(session_key(session_id))
     if not raw:
+        log.warning(f"Session not found in Redis: session_id={session_id}")
         raise HTTPException(status_code=404, detail="Session not found")
 
+    session = json.loads(raw)
+    log.info(f"Session found: session_id={session_id} user={session.get('user_id')} saved_events={len(session.get('saved_event_ids', []))}")
     newrelic.agent.add_custom_attribute("session_id", session_id)
 
     if BUG_MEMORY_LEAK:
-        _leak_buffer.append(json.loads(raw))
+        _leak_buffer.append(session)
         log.warning(f"BUG_MEMORY_LEAK active: buffer has {len(_leak_buffer)} entries")
 
-    return json.loads(raw)
+    return session
 
 
 @app.post("/sessions/{session_id}/saved-events", status_code=201)
 @newrelic.agent.function_trace()
 def save_event(session_id: str, req: SaveEventRequest):
+    log.info(f"Save event request: session_id={session_id} event_id={req.event_id}")
     raw = redis_client.get(session_key(session_id))
     if not raw:
+        log.warning(f"Save event rejected — session not found: session_id={session_id}")
         raise HTTPException(status_code=404, detail="Session not found")
 
     session = json.loads(raw)
     user_id = session["user_id"]
+
+    already_saved = req.event_id in session["saved_event_ids"]
+    if already_saved:
+        log.info(f"Event already saved (no-op): event_id={req.event_id} user={user_id}")
 
     conn = pg_pool.getconn()
     try:
@@ -136,12 +149,14 @@ def save_event(session_id: str, req: SaveEventRequest):
                 (user_id, req.event_id),
             )
             conn.commit()
+        log.info(f"Event persisted to DB: event_id={req.event_id} user={user_id}")
     finally:
         pg_pool.putconn(conn)
 
     if req.event_id not in session["saved_event_ids"]:
         session["saved_event_ids"].append(req.event_id)
     redis_client.setex(session_key(session_id), SESSION_TTL, json.dumps(session))
+    log.info(f"Session updated in Redis: session_id={session_id} total_saved={len(session['saved_event_ids'])}")
 
     newrelic.agent.add_custom_attribute("user_id", user_id)
     newrelic.agent.add_custom_attribute("event_id", req.event_id)
@@ -151,15 +166,17 @@ def save_event(session_id: str, req: SaveEventRequest):
         "session_id": session_id,
     })
 
-    log.info(f"Event {req.event_id} saved for user {user_id}")
+    log.info(f"Event saved OK: event_id={req.event_id} user={user_id} total_saved={len(session['saved_event_ids'])}")
     return {"session_id": session_id, "saved_event_ids": session["saved_event_ids"]}
 
 
 @app.delete("/sessions/{session_id}/saved-events/{event_id}")
 @newrelic.agent.function_trace()
 def unsave_event(session_id: str, event_id: str):
+    log.info(f"Unsave event request: session_id={session_id} event_id={event_id}")
     raw = redis_client.get(session_key(session_id))
     if not raw:
+        log.warning(f"Unsave event rejected — session not found: session_id={session_id}")
         raise HTTPException(status_code=404, detail="Session not found")
 
     session = json.loads(raw)
@@ -173,11 +190,13 @@ def unsave_event(session_id: str, event_id: str):
                 (user_id, event_id),
             )
             conn.commit()
+        log.info(f"Event deleted from DB: event_id={event_id} user={user_id}")
     finally:
         pg_pool.putconn(conn)
 
     session["saved_event_ids"] = [e for e in session["saved_event_ids"] if e != event_id]
     redis_client.setex(session_key(session_id), SESSION_TTL, json.dumps(session))
+    log.info(f"Session updated in Redis: session_id={session_id} remaining_saved={len(session['saved_event_ids'])}")
 
     newrelic.agent.add_custom_attribute("user_id", user_id)
     newrelic.agent.add_custom_attribute("event_id", event_id)
@@ -187,5 +206,5 @@ def unsave_event(session_id: str, event_id: str):
         "session_id": session_id,
     })
 
-    log.info(f"Event {event_id} unsaved for user {user_id}")
+    log.info(f"Event unsaved OK: event_id={event_id} user={user_id} remaining_saved={len(session['saved_event_ids'])}")
     return {"session_id": session_id, "saved_event_ids": session["saved_event_ids"]}

@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from typing import Optional
 from anthropic import Anthropic, APIError as AnthropicAPIError
 from google import genai as google_genai
+from openai import OpenAI
 from circuit_breaker import CircuitBreaker
 
 newrelic.agent.initialize()
@@ -24,20 +25,24 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 
 anthropic_client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
 gemini_client = google_genai.Client(api_key=os.getenv("GEMINI_API_KEY", ""))
+openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY", ""))
 
 cb = CircuitBreaker(
     failure_threshold=int(os.getenv("CB_FAILURE_THRESHOLD", "5")),
     recovery_timeout=int(os.getenv("CB_RECOVERY_TIMEOUT_SECONDS", "60")),
 )
 
-CLAUDE_MODEL     = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-20250514")
+CLAUDE_MODEL     = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-6")
 GEMINI_MODEL     = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite-preview")
+OPENAI_MODEL     = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 DEFAULT_PROVIDER = os.getenv("AI_PROVIDER", "gemini")
 DEMO_CITY        = os.getenv("DEMO_CITY", "London")
 REC_CACHE_TTL    = 300
 BUG_AI_SLOW      = os.getenv("BUG_AI_SLOW", "false").lower() == "true"
 TM_API_KEY       = os.getenv("TICKETMASTER_API_KEY", "")
 TM_BASE          = "https://app.ticketmaster.com/discovery/v2/events.json"
+EB_API_KEY       = os.getenv("EVENTBRITE_API_KEY", "")
+EB_BASE          = "https://www.eventbriteapi.com/v3/events/search/"
 TODAY            = time.strftime("%Y-%m-%d", time.gmtime())
 
 try:
@@ -79,7 +84,7 @@ def status():
         "circuit_breaker_state": cb.state,
         "failure_count": cb.failure_count,
         "provider": DEFAULT_PROVIDER,
-        "model": GEMINI_MODEL if DEFAULT_PROVIDER == "gemini" else CLAUDE_MODEL,
+        "model": GEMINI_MODEL if DEFAULT_PROVIDER == "gemini" else (OPENAI_MODEL if DEFAULT_PROVIDER == "openai" else CLAUDE_MODEL),
     }
 
 
@@ -96,30 +101,42 @@ def get_recommendations(req: RecommendationRequest):
     newrelic.agent.add_custom_attribute("circuit_breaker_state", cb.state)
     newrelic.agent.add_custom_attribute("ai_provider", provider)
 
+    log.info(
+        f"Recommendations request: user={req.user_id} city={city} provider={provider} "
+        f"events={len(req.available_events)} saved={len(req.saved_event_ids)} cb={cb.state}"
+    )
+
     if redis_client and not BUG_AI_SLOW:
         try:
             cached = redis_client.get(cache_key)
             if cached:
                 newrelic.agent.add_custom_attribute("cache_hit", True)
-                log.info(f"Cache hit for {cache_key}")
+                log.info(f"Cache HIT for key={cache_key} — returning cached recommendations")
                 return RecommendationResponse(
                     recommendations=json.loads(cached),
                     mode="ai",
                     ai_response_ms=0,
                     provider=provider,
                 )
+            else:
+                log.info(f"Cache MISS for key={cache_key} — will call {provider} AI")
         except Exception as e:
-            log.warning(f"Redis read error: {e}")
+            log.warning(f"Redis read error (cache disabled for this request): {e}")
     newrelic.agent.add_custom_attribute("cache_hit", False)
 
     if cb.state == "OPEN":
-        log.warning("Circuit breaker OPEN — using rule-based fallback")
+        log.warning(
+            f"Circuit breaker OPEN — skipping AI call for user={req.user_id}, "
+            f"falling back to rule-based recommendations"
+        )
         newrelic.agent.record_custom_event("AIFallback", {
             "user_id": req.user_id,
             "reason": "circuit_breaker_open",
         })
+        fallback_recs = rule_based_fallback(req)
+        log.info(f"Rule-based fallback produced {len(fallback_recs)} recommendations for user={req.user_id}")
         return RecommendationResponse(
-            recommendations=rule_based_fallback(req),
+            recommendations=fallback_recs,
             mode="fallback",
             provider=provider,
         )
@@ -129,14 +146,20 @@ def get_recommendations(req: RecommendationRequest):
         elapsed_ms = int((time.time() - start) * 1000)
         cb.record_success()
 
+        log.info(
+            f"AI recommendations OK: user={req.user_id} provider={provider} "
+            f"recs={len(recs)} latency_ms={elapsed_ms} cb={cb.state}"
+        )
+
         newrelic.agent.add_custom_attribute("ai_response_ms", elapsed_ms)
         newrelic.agent.add_custom_attribute("ai_mode", "ai")
 
         if redis_client:
             try:
                 redis_client.setex(cache_key, REC_CACHE_TTL, json.dumps(recs))
+                log.info(f"Cached recommendations for key={cache_key} TTL={REC_CACHE_TTL}s")
             except Exception as e:
-                log.warning(f"Redis write error: {e}")
+                log.warning(f"Redis write error (recommendations not cached): {e}")
 
         return RecommendationResponse(
             recommendations=recs,
@@ -146,7 +169,10 @@ def get_recommendations(req: RecommendationRequest):
         )
 
     except Exception as e:
-        log.error(f"{provider} API error: {e}")
+        log.error(
+            f"AI call FAILED: provider={provider} user={req.user_id} "
+            f"error={type(e).__name__}: {e} cb_state_after={cb.state}"
+        )
         cb.record_failure()
 
         newrelic.agent.notice_error()
@@ -157,9 +183,12 @@ def get_recommendations(req: RecommendationRequest):
             "circuit_breaker_state": cb.state,
         })
 
+        mode = "degraded" if cb.state != "OPEN" else "fallback"
+        fallback_recs = rule_based_fallback(req)
+        log.warning(f"Serving {mode} response: {len(fallback_recs)} rule-based recs for user={req.user_id}")
         return RecommendationResponse(
-            recommendations=rule_based_fallback(req),
-            mode="degraded" if cb.state != "OPEN" else "fallback",
+            recommendations=fallback_recs,
+            mode=mode,
             provider=provider,
         )
 
@@ -176,13 +205,36 @@ def call_ai(req: RecommendationRequest, provider: str) -> list[dict]:
         time.sleep(8)
 
     if provider == "claude":
-        return call_claude(req)
-    return call_gemini(req)
+        model = CLAUDE_MODEL
+    elif provider == "openai":
+        model = OPENAI_MODEL
+    else:
+        model = GEMINI_MODEL
+    log.info(f"Calling {provider} API: model={model} user={req.user_id} events={len(req.available_events)}")
+    t0 = time.time()
+    if provider == "claude":
+        result = call_claude(req)
+    elif provider == "openai":
+        result = call_openai(req)
+    else:
+        result = call_gemini(req)
+    log.info(f"{provider} API returned {len(result)} recommendations in {int((time.time()-t0)*1000)}ms")
+    return result
 
 
 def _build_prompt(req: RecommendationRequest) -> str:
     prefs = req.user_preferences
     saved_ids = set(req.saved_event_ids)
+    event_map = {e["id"]: e for e in req.available_events}
+
+    # Enrich saved event IDs with actual event details so the AI understands the user's taste
+    saved_details = [
+        f"  - {event_map[eid]['title']} ({event_map[eid]['category']}) at {event_map[eid]['venue']}"
+        for eid in saved_ids
+        if eid in event_map
+    ]
+    saved_summary = "\n".join(saved_details) if saved_details else "  (none yet)"
+
     events_summary = []
     for e in req.available_events[:20]:
         events_summary.append(
@@ -194,7 +246,8 @@ def _build_prompt(req: RecommendationRequest) -> str:
 User preferences:
 - Favourite categories: {prefs.get('categories', [])}
 - Preferred times: {prefs.get('times', [])}
-- Previously saved events: {list(saved_ids)}
+- Previously saved events (use these to understand their taste):
+{saved_summary}
 
 Available events:
 {chr(10).join(events_summary)}
@@ -236,6 +289,15 @@ def call_claude(req: RecommendationRequest) -> list[dict]:
         messages=[{"role": "user", "content": _build_prompt(req)}],
     )
     return _parse_recs(response.content[0].text, req)
+
+
+def call_openai(req: RecommendationRequest) -> list[dict]:
+    response = openai_client.chat.completions.create(
+        model=OPENAI_MODEL,
+        max_tokens=256,
+        messages=[{"role": "user", "content": _build_prompt(req)}],
+    )
+    return _parse_recs(response.choices[0].message.content, req)
 
 
 def rule_based_fallback(req: RecommendationRequest) -> list[dict]:
@@ -336,6 +398,117 @@ def _fetch_tm_city(city: str) -> list[dict]:
     return result
 
 
+# ---------------------------------------------------------------------------
+# Eventbrite event source (food, sport, tech)
+# ---------------------------------------------------------------------------
+
+EB_CATEGORY_MAP = {
+    "108": "sport",   # Sports & Fitness
+    "110": "food",    # Food & Drink
+    "102": "tech",    # Science & Technology
+}
+EB_CATEGORIES = ",".join(EB_CATEGORY_MAP.keys())
+
+
+def _map_eb_event(ev: dict, city: str) -> Optional[dict]:
+    venue     = ev.get("venue") or {}
+    addr      = (venue.get("address") or {}).get("localized_address_display", city)
+    start     = (ev.get("start") or {}).get("utc")
+    if not start:
+        return None
+    try:
+        from datetime import datetime
+        date = datetime.fromisoformat(start.replace("Z", "+00:00"))
+    except Exception:
+        return None
+    price_obj = ((ev.get("ticket_availability") or {}).get("minimum_ticket_price") or {})
+    price     = float(price_obj.get("major_value", 0) or 0)
+    image_url = ((ev.get("logo") or {}).get("url") or "")
+    cat_id    = str(ev.get("category_id", ""))
+    category  = EB_CATEGORY_MAP.get(cat_id, "tech")
+    name      = (ev.get("name") or {}).get("text", "") or ""
+    desc      = (ev.get("description") or {}).get("text", "") or name
+    return {
+        "id":          f"eb-{ev['id'][:60]}",
+        "title":       name[:255],
+        "description": desc[:255],
+        "category":    category,
+        "venue":       (venue.get("name") or "")[:255],
+        "address":     addr[:255],
+        "city":        city,
+        "date":        date.isoformat(),
+        "price_gbp":   round(price, 2),
+        "image_url":   image_url[:512],
+        "ticket_url":  (ev.get("url") or "")[:512],
+        "tags":        [category],
+    }
+
+
+def _fetch_eventbrite_city(city: str) -> list[dict]:
+    if not EB_API_KEY:
+        return []
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    try:
+        resp = http_requests.get(
+            EB_BASE,
+            headers={"Authorization": f"Bearer {EB_API_KEY}"},
+            params={
+                "location.address": city,
+                "location.within": "20km",
+                "categories": EB_CATEGORIES,
+                "expand": "venue,ticket_availability",
+                "sort_by": "date",
+                "start_date.range_start": now,
+                "page_size": "50",
+            },
+            timeout=15,
+        )
+        resp.raise_for_status()
+    except Exception as e:
+        log.warning(f"Eventbrite fetch failed for city={city}: {e}")
+        return []
+    result, seen = [], set()
+    for ev in resp.json().get("events", []):
+        mapped = _map_eb_event(ev, city)
+        if mapped and mapped["id"] not in seen:
+            seen.add(mapped["id"])
+            result.append(mapped)
+    log.info(f"Eventbrite returned {len(result)} events for city={city}")
+    return result
+
+
+_CATEGORY_CONTEXT = {
+    "food":  "food & drink events such as supper clubs, food festivals, cooking masterclasses, wine and cocktail tastings, pop-up restaurants, street food markets, and chef's table dinners",
+    "sport": "sport & fitness events such as 5K and 10K runs, cycling sportives, yoga and pilates sessions, fitness bootcamps, local football and rugby fixtures, climbing sessions, open-water swims, and tennis tournaments",
+    "tech":  "technology events such as hackathons, developer meetups, startup pitch nights, AI and ML workshops, product demo days, coding bootcamps, open-source sprints, and founder networking evenings",
+}
+
+
+def _fetch_gemini_category(city: str, category: str, count: int) -> list[dict]:
+    prefix = re.sub(r"[^a-z]", "", city.lower())[:4]
+    context = _CATEGORY_CONTEXT.get(category, f"{category} events")
+    prompt = f"""Generate {count} realistic upcoming {context} in {city}.
+Today is {TODAY}. Set event dates between tomorrow and {TODAY} + 30 days.
+Use real, well-known venues in {city} that genuinely host this type of event.
+Return ONLY a valid JSON array of exactly {count} objects. No preamble, no explanation.
+Each object must follow this exact schema:
+{{"id":"{prefix}-{category}-1","title":"...","description":"...","category":"{category}","venue":"<real venue name>","address":"<full street address>, {city}","city":"{city}","date":"2026-05-10T19:00:00+00:00","price_gbp":0.00,"image_url":"","ticket_url":"","tags":["{category}"]}}
+Rules: id must be {prefix}-{category}-<1..{count}>. date must be ISO 8601 UTC. title and venue must be specific and realistic, not generic."""
+    try:
+        response = gemini_client.models.generate_content(model=GEMINI_MODEL, contents=prompt)
+        raw = response.text.strip()
+        if raw.startswith("```"):
+            parts = raw.split("```")
+            raw = parts[1][4:].strip() if len(parts) > 1 else raw
+        events = json.loads(raw)
+        log.info(f"Gemini category fill: city={city} category={category} generated={len(events)}")
+        return events
+    except Exception as e:
+        log.warning(f"Gemini category fill failed: city={city} category={category} error={e}")
+        return []
+
+
 def _fetch_gemini_city(city: str) -> list[dict]:
     prefix = re.sub(r"[^a-z]", "", city.lower())[:4]
     prompt = f"""Generate 20 realistic upcoming events for {city}.
@@ -403,20 +576,72 @@ class EventGenerateRequest(BaseModel):
 @newrelic.agent.function_trace()
 def generate_events(req: EventGenerateRequest):
     city = req.city.strip().title()
-    log.info(f"Generating events for city: {city}")
+    log.info(
+        f"Event generation request: city={city} "
+        f"tm={'set' if TM_API_KEY else 'missing'} eb={'set' if EB_API_KEY else 'missing'}"
+    )
     newrelic.agent.add_custom_attribute("city", city)
 
-    source = "ticketmaster"
-    events = _fetch_tm_city(city) if TM_API_KEY else []
+    events: list[dict] = []
+    sources: list[str] = []
+
+    # Ticketmaster: strong for music and art
+    if TM_API_KEY:
+        log.info(f"Fetching music/art from Ticketmaster: city={city}")
+        tm_events = _fetch_tm_city(city)
+        log.info(f"Ticketmaster returned {len(tm_events)} events for city={city}")
+        events.extend(tm_events)
+        if tm_events:
+            sources.append("ticketmaster")
+
+    # Eventbrite: fills food, sport, tech that TM misses
+    if EB_API_KEY:
+        log.info(f"Fetching food/sport/tech from Eventbrite: city={city}")
+        eb_events = _fetch_eventbrite_city(city)
+        log.info(f"Eventbrite returned {len(eb_events)} events for city={city}")
+        existing_ids = {e["id"] for e in events}
+        added = [e for e in eb_events if e["id"] not in existing_ids]
+        events.extend(added)
+        if added:
+            sources.append("eventbrite")
+
+    # Count coverage per category
+    by_cat: dict[str, int] = {}
+    for e in events:
+        by_cat[e["category"]] = by_cat.get(e["category"], 0) + 1
 
     if not events:
-        source = "gemini"
-        log.info(f"TM returned nothing for {city}, using Gemini")
+        log.warning(f"Both TM and EB empty for city={city} — falling back to full Gemini generation")
         events = _fetch_gemini_city(city)
+        log.info(f"Gemini full fallback: city={city} generated={len(events)}")
+        sources = ["gemini"]
+        by_cat = {}
+        for e in events:
+            by_cat[e["category"]] = by_cat.get(e["category"], 0) + 1
+    else:
+        # Top up any category that is thin (< 2 events) with targeted Gemini prompts
+        thin = [cat for cat in ["food", "sport", "tech"] if by_cat.get(cat, 0) < 2]
+        if thin:
+            log.info(f"Thin categories {thin} for city={city} — topping up with per-category Gemini prompts")
+            existing_ids = {e["id"] for e in events}
+            for cat in thin:
+                needed = max(1, 4 - by_cat.get(cat, 0))
+                fill = _fetch_gemini_category(city, cat, needed)
+                new = [e for e in fill if e["id"] not in existing_ids]
+                events.extend(new)
+                existing_ids.update(e["id"] for e in new)
+                by_cat[cat] = by_cat.get(cat, 0) + len(new)
+            if "gemini-fill" not in sources:
+                sources.append("gemini-fill")
+
+    source = "+".join(sources) if sources else "none"
 
     if events:
+        log.info(f"Writing {len(events)} events to DB: city={city} source={source} by_category={by_cat}")
         _write_events_to_db(events, city)
-        log.info(f"Stored {len(events)} events for {city} (source: {source})")
+        log.info(f"Stored {len(events)} events for city={city} source={source}")
+    else:
+        log.error(f"No events generated for city={city} — DB not updated")
 
     newrelic.agent.add_custom_attribute("events_count", len(events))
     newrelic.agent.add_custom_attribute("source", source)

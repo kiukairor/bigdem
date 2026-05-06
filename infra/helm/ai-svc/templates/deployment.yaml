@@ -39,6 +39,18 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.secrets.anthropic }}
                   key: api-key
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.openai }}
+                  key: api-key
+                  optional: true
+            - name: EVENTBRITE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.eventbrite }}
+                  key: api-key
+                  optional: true
             - name: CLAUDE_MODEL
               valueFrom:
                 secretKeyRef:

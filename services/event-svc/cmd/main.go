@@ -133,7 +133,7 @@ func healthHandler(c *gin.Context) {
 
 func getEventsHandler(c *gin.Context) {
 	city := c.DefaultQuery("city", getEnv("DEMO_CITY", "London"))
-	logger.Debug("fetching events", zap.String("city", city))
+	logger.Info("events request received", zap.String("city", city), zap.Bool("bug_stale_cache", bugStaleCache))
 
 	rows, err := db.QueryContext(c.Request.Context(),
 		`SELECT id, title, description, category, venue, address, city, date, price_gbp, ticket_url, tags
@@ -204,6 +204,7 @@ func getEventHandler(c *gin.Context) {
 
 func getEventsByCategoryHandler(c *gin.Context) {
 	category := c.Param("category")
+	logger.Info("events by category request received", zap.String("category", category))
 	rows, err := db.QueryContext(c.Request.Context(),
 		`SELECT id, title, description, category, venue, address, city, date, price_gbp, ticket_url, tags
 		 FROM events WHERE category = $1 ORDER BY date ASC`, category)
@@ -325,6 +326,7 @@ type SaveEventRequest struct {
 
 func getSavedEventsHandler(c *gin.Context) {
 	userID := getEnv("DEMO_USER_ID", "demo_user")
+	logger.Info("saved events request received", zap.String("user_id", userID))
 	rows, err := db.QueryContext(c.Request.Context(),
 		`SELECT event_id FROM saved_events WHERE user_id = $1 ORDER BY saved_at DESC`, userID)
 	if err != nil {
@@ -340,7 +342,7 @@ func getSavedEventsHandler(c *gin.Context) {
 			ids = append(ids, id)
 		}
 	}
-	logger.Debug("saved events fetched", zap.String("user_id", userID), zap.Int("count", len(ids)))
+	logger.Info("saved events fetched", zap.String("user_id", userID), zap.Int("count", len(ids)))
 	c.JSON(http.StatusOK, gin.H{"saved_event_ids": ids})
 }
 
@@ -361,7 +363,53 @@ func saveEventHandler(c *gin.Context) {
 		return
 	}
 	logger.Info("event saved", zap.String("user_id", userID), zap.String("event_id", req.EventID))
+
+	// Auto-update preferences: add this event's category if not already present
+	autoUpdatePreferencesFromSave(c.Request.Context(), userID, req.EventID)
+
 	c.JSON(http.StatusCreated, gin.H{"saved": true, "event_id": req.EventID})
+}
+
+func autoUpdatePreferencesFromSave(ctx context.Context, userID, eventID string) {
+	var category string
+	if err := db.QueryRowContext(ctx, `SELECT category FROM events WHERE id = $1`, eventID).Scan(&category); err != nil || category == "" {
+		return
+	}
+
+	var prefsJSON string
+	if err := db.QueryRowContext(ctx, `SELECT preferences FROM users WHERE id = $1`, userID).Scan(&prefsJSON); err != nil {
+		return
+	}
+
+	var prefs map[string]interface{}
+	if err := json.Unmarshal([]byte(prefsJSON), &prefs); err != nil {
+		return
+	}
+
+	cats, _ := prefs["categories"].([]interface{})
+	for _, c := range cats {
+		if c == category {
+			return // already present
+		}
+	}
+	prefs["categories"] = append(cats, category)
+
+	newJSON, err := json.Marshal(prefs)
+	if err != nil {
+		return
+	}
+	if _, err := db.ExecContext(ctx, `UPDATE users SET preferences = $1, updated_at = NOW() WHERE id = $2`, string(newJSON), userID); err != nil {
+		logger.Warn("failed to auto-update preferences", zap.String("user_id", userID), zap.String("category", category), zap.Error(err))
+		return
+	}
+	logger.Info("preferences auto-updated from save", zap.String("user_id", userID), zap.String("category_added", category))
+	if nrApp != nil {
+		nrApp.RecordCustomEvent("PreferencesAutoUpdated", map[string]interface{}{
+			"user_id":          userID,
+			"category_added":   category,
+			"trigger":          "event_save",
+		})
+	}
 }
 
 func unsaveEventHandler(c *gin.Context) {
