@@ -25,7 +25,8 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 
 anthropic_client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
 gemini_client = google_genai.Client(api_key=os.getenv("GEMINI_API_KEY", ""))
-openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY", ""))
+_openai_key   = os.getenv("OPENAI_API_KEY", "")
+openai_client = OpenAI(api_key=_openai_key) if _openai_key else None
 
 cb = CircuitBreaker(
     failure_threshold=int(os.getenv("CB_FAILURE_THRESHOLD", "5")),
