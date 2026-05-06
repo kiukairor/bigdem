@@ -1,7 +1,9 @@
 import os
+import newrelic.agent
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from typing import Optional
 from google import genai
 from google.genai import types as genai_types
 from anthropic import Anthropic
@@ -50,6 +52,12 @@ class ChatRequest(BaseModel):
     model: str = DEFAULT_MODEL
 
 
+class FeedbackRequest(BaseModel):
+    trace_id: str
+    rating: str  # "good" or "bad"
+    message: Optional[str] = None
+
+
 @app.get("/health")
 def health():
     return {"status": "ok", "service": "test-svc"}
@@ -94,4 +102,16 @@ async def chat(req: ChatRequest):
         )
         reply = response.choices[0].message.content
 
-    return {"reply": reply, "model": req.model, "provider": provider}
+    trace_id = newrelic.agent.current_trace_id()
+    return {"reply": reply, "model": req.model, "provider": provider, "trace_id": trace_id}
+
+
+@app.post("/chat/feedback", status_code=204)
+async def chat_feedback(req: FeedbackRequest):
+    newrelic.agent.record_llm_feedback_event(
+        trace_id=req.trace_id,
+        rating=req.rating,
+        message=req.message,
+        metadata={"source": "pulse-chat"},
+    )
+    return None

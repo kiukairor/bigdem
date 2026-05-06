@@ -78,7 +78,7 @@ versus/                          ← repo root (github.com/kiukairor/bigdem)
 | `postgresql` | ✅ Running | Events refreshed daily, 1 demo user with auto-updating preferences |
 | `redis` | ✅ Running | local-path StorageClass |
 | `gateway` | ✅ Running | NGINX GW Fabric v1.6.1, NodePort :30443, pulse.test only |
-| `test-svc` | 🔲 Not deployed | Gemini-only test service, NR app name: pulse-ai-dontask |
+| `test-svc` | ✅ Running | Multi-model chat (Gemini/Claude/OpenAI), NR instrumented via newrelic-admin, app name: pulse-ai-dontask |
 
 Image tags are managed by CI (GitHub Actions updates values.yaml automatically on each push).
 
@@ -275,13 +275,14 @@ K8s secret names used in Helm charts:
 | Service | Agent | Key signals |
 |---------|-------|-------------|
 | pulse-shell | NR Browser | page load, JS errors |
-| pulse-feed | NR Browser | MFE load time, interaction traces |
+| pulse-feed | NR Browser | MFE load time, interaction traces, page actions on every button click |
 | event-svc | NR Go Agent | APM, DB query spans |
 | ai-svc | NR Python Agent | LLM latency, circuit breaker state, token count |
-| session-svc | NR Python Agent | Redis hit/miss, WebSocket connections |
+| session-svc | NR Python Agent | Redis hit/miss, session lifecycle |
+| test-svc | NR Python Agent | LLM Observability (Gemini/Claude/OpenAI auto-instrumented), LLM feedback events |
 | K8s | NR Infrastructure | pod CPU/RAM, OOMKill |
 
-Custom NR events: `UserAIOptOut`, `AIFallback`, `AIServiceError`, `BugScenarioEnabled`, `PreferencesAutoUpdated`
+Custom NR events: `UserAIOptOut`, `AIFallback`, `AIServiceError`, `BugScenarioEnabled`, `PreferencesAutoUpdated`, `LlmFeedback` (via `record_llm_feedback_event` in test-svc)
 Custom NR metrics: `Custom/AICircuitBreaker/State`, `Custom/AI/ResponseMs`, `Custom/AI/TokensUsed`
 NR Browser page actions (via `window.newrelic?.addPageAction`): `pulse.category_filter`, `pulse.live_refresh`, `pulse.event_save`, `pulse.event_unsave`, `pulse.event_save_error`, `pulse.provider_change`, `pulse.ai_toggle`, `pulse.recommendations_received`, `pulse.recommendations_error`, `pulse.chat_open`
 
@@ -351,6 +352,11 @@ All backend services have verbose INFO/WARNING/ERROR logging at every meaningful
   - Saving an event auto-adds its category to user.preferences (event-svc, no schema changes)
   - AI prompt enriched: saved event IDs replaced with full event title + category for better AI reasoning
   - Fires PreferencesAutoUpdated NR custom event
+- [x] LLM feedback in chat (test-svc)
+  - `/chat` returns `trace_id` from `newrelic.agent.current_trace_id()`
+  - `POST /chat/feedback` calls `record_llm_feedback_event(trace_id, rating, message?)`
+  - ChatModal: thumbs up/down per assistant message, wired to feedback endpoint
+  - Routed via pulse-shell rewrite: `/api/test-svc/chat/feedback`
 - [x] Per-category Gemini event fill
   - Thin categories (< 2 events after TM) topped up with targeted Gemini prompts per category
   - Category-specific prompts: food → supper clubs/markets, sport → 5Ks/fitness, tech → hackathons/meetups

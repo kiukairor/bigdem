@@ -20,6 +20,8 @@ interface Message {
   role: 'user' | 'assistant'
   content: string
   model?: string
+  trace_id?: string
+  feedback?: 'good' | 'bad'
 }
 
 interface Props {
@@ -52,13 +54,36 @@ export default function ChatModal({ onClose }: Props) {
       })
       if (!res.ok) throw new Error(`${res.status}`)
       const data = await res.json()
-      console.info(`[pulse-feed] Chat response received: model=${data.model} reply_length=${data.reply?.length}`)
-      setMessages(prev => [...prev, { role: 'assistant', content: data.reply, model: data.model }])
+      console.info(`[pulse-feed] Chat response received: model=${data.model} trace_id=${data.trace_id}`)
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: data.reply,
+        model: data.model,
+        trace_id: data.trace_id,
+      }])
     } catch (e) {
       console.error(`[pulse-feed] Chat request failed: model=${model} error=${e}`)
       setMessages(prev => [...prev, { role: 'assistant', content: 'Something went wrong. Please try again.' }])
     } finally {
       setLoading(false)
+    }
+  }
+
+  const sendFeedback = async (index: number, rating: 'good' | 'bad') => {
+    const msg = messages[index]
+    if (!msg.trace_id || msg.feedback) return
+
+    setMessages(prev => prev.map((m, i) => i === index ? { ...m, feedback: rating } : m))
+    console.info(`[pulse-feed] Chat feedback: rating=${rating} trace_id=${msg.trace_id}`)
+
+    try {
+      await fetch(`${TEST_SVC}/chat/feedback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ trace_id: msg.trace_id, rating }),
+      })
+    } catch (e) {
+      console.error(`[pulse-feed] Chat feedback failed: ${e}`)
     }
   }
 
@@ -88,6 +113,26 @@ export default function ChatModal({ onClose }: Props) {
               <p className={styles.msgContent}>{m.content}</p>
               {m.role === 'assistant' && m.model && (
                 <span className={styles.msgModel}>{m.model}</span>
+              )}
+              {m.role === 'assistant' && m.trace_id && (
+                <div className={styles.feedback}>
+                  <button
+                    className={`${styles.feedbackBtn} ${m.feedback === 'good' ? styles.feedbackActive : ''}`}
+                    onClick={() => sendFeedback(i, 'good')}
+                    disabled={!!m.feedback}
+                    title="Good response"
+                  >
+                    👍
+                  </button>
+                  <button
+                    className={`${styles.feedbackBtn} ${m.feedback === 'bad' ? styles.feedbackActive : ''}`}
+                    onClick={() => sendFeedback(i, 'bad')}
+                    disabled={!!m.feedback}
+                    title="Bad response"
+                  >
+                    👎
+                  </button>
+                </div>
               )}
             </div>
           ))}
