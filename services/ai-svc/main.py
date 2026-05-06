@@ -12,10 +12,9 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
+from anthropic import Anthropic
 from google import genai as google_genai
 from openai import OpenAI
-from langchain_anthropic import ChatAnthropic
-from langchain_core.messages import HumanMessage
 from circuit_breaker import CircuitBreaker
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -24,8 +23,8 @@ log = logging.getLogger("ai-svc")
 app = FastAPI(title="pulse-ai-svc")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-gemini_client = google_genai.Client(api_key=os.getenv("GEMINI_API_KEY", ""))
-claude_llm     = ChatAnthropic(model=os.getenv("CLAUDE_MODEL", "claude-sonnet-4-6"), max_tokens=256)
+anthropic_client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
+gemini_client    = google_genai.Client(api_key=os.getenv("GEMINI_API_KEY", ""))
 _openai_key   = os.getenv("OPENAI_API_KEY", "")
 openai_client = OpenAI(api_key=_openai_key) if _openai_key else None
 
@@ -330,6 +329,35 @@ def _parse_recs(raw: str, req: RecommendationRequest) -> list[dict]:
     ]
 
 
+def _record_llm_event(vendor: str, model: str, prompt: str, reply: str,
+                      input_tokens: int, output_tokens: int) -> None:
+    import uuid
+    request_id = str(uuid.uuid4())
+    span_id     = newrelic.agent.current_span_id()   if hasattr(newrelic.agent, "current_span_id")   else ""
+    trace_id    = newrelic.agent.current_trace_id()
+    tx          = newrelic.agent.current_transaction()
+    tx_id       = tx.guid if tx else ""
+    base = {
+        "id": request_id, "vendor": vendor, "ingest_source": "Python",
+        "request.model": model, "response.model": model,
+        "request_id": request_id, "trace_id": trace_id,
+        "span_id": span_id, "transaction_id": tx_id,
+        "response.usage.input_tokens": input_tokens,
+        "response.usage.output_tokens": output_tokens,
+        "response.usage.total_tokens": input_tokens + output_tokens,
+        "response.number_of_messages": 2,
+    }
+    newrelic.agent.record_custom_event("LlmChatCompletionSummary", base)
+    newrelic.agent.record_custom_event("LlmChatCompletionMessage", {
+        **base, "sequence": 0, "role": "user",
+        "content": prompt[:4095], "completion_id": request_id,
+    })
+    newrelic.agent.record_custom_event("LlmChatCompletionMessage", {
+        **base, "sequence": 1, "role": "assistant",
+        "content": reply[:4095], "completion_id": request_id,
+    })
+
+
 def _record_tokens(provider: str, model: str, input_tokens: int, output_tokens: int) -> None:
     total = input_tokens + output_tokens
     newrelic.agent.add_custom_attribute("llm.provider", provider)
@@ -357,14 +385,20 @@ def call_gemini(req: RecommendationRequest) -> list[dict]:
 
 
 def call_claude(req: RecommendationRequest) -> list[dict]:
-    response = claude_llm.invoke([HumanMessage(content=_build_prompt(req))])
-    if response.usage_metadata:
-        _record_tokens(
-            "claude", CLAUDE_MODEL,
-            response.usage_metadata.get("input_tokens", 0),
-            response.usage_metadata.get("output_tokens", 0),
-        )
-    return _parse_recs(response.content, req)
+    response = anthropic_client.messages.create(
+        model=CLAUDE_MODEL,
+        max_tokens=256,
+        messages=[{"role": "user", "content": _build_prompt(req)}],
+    )
+    reply = response.content[0].text
+    if getattr(response, "usage", None):
+        _record_tokens("claude", CLAUDE_MODEL,
+                       response.usage.input_tokens or 0,
+                       response.usage.output_tokens or 0)
+    _record_llm_event("anthropic", CLAUDE_MODEL, _build_prompt(req), reply,
+                      getattr(response.usage, "input_tokens", 0) if response.usage else 0,
+                      getattr(response.usage, "output_tokens", 0) if response.usage else 0)
+    return _parse_recs(reply, req)
 
 
 def call_openai(req: RecommendationRequest) -> list[dict]:

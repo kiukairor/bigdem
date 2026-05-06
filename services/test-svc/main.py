@@ -8,11 +8,10 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
+from anthropic import Anthropic
 from google import genai
 from google.genai import types as genai_types
 from openai import OpenAI
-from langchain_anthropic import ChatAnthropic
-from langchain_core.messages import HumanMessage, SystemMessage
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 log = logging.getLogger("test-svc")
@@ -25,9 +24,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-gemini_client = genai.Client(api_key=os.getenv("GEMINI_API_KEY", ""))
-_openai_key   = os.getenv("OPENAI_API_KEY", "")
-openai_client = OpenAI(api_key=_openai_key) if _openai_key else None
+anthropic_client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
+gemini_client    = genai.Client(api_key=os.getenv("GEMINI_API_KEY", ""))
+_openai_key      = os.getenv("OPENAI_API_KEY", "")
+openai_client    = OpenAI(api_key=_openai_key) if _openai_key else None
 
 DEFAULT_MODEL  = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite-preview")
 EVENT_SVC_URL  = os.getenv("EVENT_SVC_URL", "http://event-svc:8080")
@@ -65,6 +65,33 @@ class FeedbackRequest(BaseModel):
     trace_id: str
     rating: str  # "good" or "bad"
     message: Optional[str] = None
+
+
+def _record_llm_event(vendor: str, model: str, prompt: str, reply: str,
+                      input_tokens: int, output_tokens: int) -> None:
+    import uuid
+    request_id = str(uuid.uuid4())
+    trace_id   = newrelic.agent.current_trace_id()
+    tx         = newrelic.agent.current_transaction()
+    tx_id      = tx.guid if tx else ""
+    base = {
+        "id": request_id, "vendor": vendor, "ingest_source": "Python",
+        "request.model": model, "response.model": model,
+        "request_id": request_id, "trace_id": trace_id, "transaction_id": tx_id,
+        "response.usage.input_tokens": input_tokens,
+        "response.usage.output_tokens": output_tokens,
+        "response.usage.total_tokens": input_tokens + output_tokens,
+        "response.number_of_messages": 2,
+    }
+    newrelic.agent.record_custom_event("LlmChatCompletionSummary", base)
+    newrelic.agent.record_custom_event("LlmChatCompletionMessage", {
+        **base, "sequence": 0, "role": "user",
+        "content": prompt[:4095], "completion_id": request_id,
+    })
+    newrelic.agent.record_custom_event("LlmChatCompletionMessage", {
+        **base, "sequence": 1, "role": "assistant",
+        "content": reply[:4095], "completion_id": request_id,
+    })
 
 
 def _fetch_events_context(city: str) -> str:
@@ -123,12 +150,17 @@ async def chat(req: ChatRequest):
             output_tokens = response.usage_metadata.candidates_token_count or 0
 
     elif provider == "claude":
-        llm = ChatAnthropic(model=req.model, max_tokens=1024)
-        lc_response = llm.invoke([SystemMessage(content=system), HumanMessage(content=req.message)])
-        reply = lc_response.content
-        if lc_response.usage_metadata:
-            input_tokens  = lc_response.usage_metadata.get("input_tokens", 0)
-            output_tokens = lc_response.usage_metadata.get("output_tokens", 0)
+        response = anthropic_client.messages.create(
+            model=req.model,
+            max_tokens=1024,
+            system=system,
+            messages=[{"role": "user", "content": req.message}],
+        )
+        reply = response.content[0].text
+        if getattr(response, "usage", None):
+            input_tokens  = response.usage.input_tokens or 0
+            output_tokens = response.usage.output_tokens or 0
+        _record_llm_event("anthropic", req.model, req.message, reply, input_tokens, output_tokens)
 
     else:
         if not openai_client:
