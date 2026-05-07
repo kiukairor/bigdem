@@ -138,44 +138,51 @@ async def chat(req: ChatRequest):
 
     input_tokens = output_tokens = 0
 
-    if provider == "gemini":
-        response = gemini_client.models.generate_content(
-            model=req.model,
-            contents=req.message,
-            config=genai_types.GenerateContentConfig(system_instruction=system),
-        )
-        reply = response.text
-        if getattr(response, "usage_metadata", None):
-            input_tokens  = response.usage_metadata.prompt_token_count or 0
-            output_tokens = response.usage_metadata.candidates_token_count or 0
+    try:
+        if provider == "gemini":
+            response = gemini_client.models.generate_content(
+                model=req.model,
+                contents=req.message,
+                config=genai_types.GenerateContentConfig(system_instruction=system),
+            )
+            reply = response.text
+            if getattr(response, "usage_metadata", None):
+                input_tokens  = response.usage_metadata.prompt_token_count or 0
+                output_tokens = response.usage_metadata.candidates_token_count or 0
 
-    elif provider == "claude":
-        response = anthropic_client.messages.create(
-            model=req.model,
-            max_tokens=1024,
-            system=system,
-            messages=[{"role": "user", "content": req.message}],
-        )
-        reply = response.content[0].text
-        if getattr(response, "usage", None):
-            input_tokens  = response.usage.input_tokens or 0
-            output_tokens = response.usage.output_tokens or 0
-        _record_llm_event("anthropic", req.model, req.message, reply, input_tokens, output_tokens)
+        elif provider == "claude":
+            response = anthropic_client.messages.create(
+                model=req.model,
+                max_tokens=1024,
+                system=system,
+                messages=[{"role": "user", "content": req.message}],
+            )
+            reply = response.content[0].text
+            if getattr(response, "usage", None):
+                input_tokens  = response.usage.input_tokens or 0
+                output_tokens = response.usage.output_tokens or 0
+            _record_llm_event("anthropic", req.model, req.message, reply, input_tokens, output_tokens)
 
-    else:
-        if not openai_client:
-            raise HTTPException(status_code=503, detail="OpenAI key not configured")
-        response = openai_client.chat.completions.create(
-            model=req.model,
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user", "content": req.message},
-            ],
-        )
-        reply = response.choices[0].message.content
-        if getattr(response, "usage", None):
-            input_tokens  = response.usage.prompt_tokens or 0
-            output_tokens = response.usage.completion_tokens or 0
+        else:
+            if not openai_client:
+                raise HTTPException(status_code=503, detail="OpenAI key not configured")
+            response = openai_client.chat.completions.create(
+                model=req.model,
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": req.message},
+                ],
+            )
+            reply = response.choices[0].message.content
+            if getattr(response, "usage", None):
+                input_tokens  = response.usage.prompt_tokens or 0
+                output_tokens = response.usage.completion_tokens or 0
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error(f"Chat LLM call failed: model={req.model} provider={provider} error={e}")
+        raise HTTPException(status_code=502, detail=str(e))
 
     trace_id = newrelic.agent.current_trace_id()
     total_tokens = input_tokens + output_tokens
