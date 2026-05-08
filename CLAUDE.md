@@ -43,7 +43,7 @@ versus/                          ← repo root (github.com/kiukairor/bigdem)
 │   │   ├── main.py              ← entry point
 │   │   ├── Dockerfile            ← runs via newrelic-admin
 │   │   └── requirements.txt
-│   └── test-svc/                ← Python 3.12 + FastAPI, port 8090, Gemini only, no NR instrumentation
+│   └── pulse-ai-dontask/                ← Python 3.12 + FastAPI, port 8090, multi-LLM chat (Gemini/Claude/OpenAI), NR instrumented via newrelic-admin
 ├── infra/
 │   └── helm/                    ← one Helm chart per service
 │       ├── pulse-shell/
@@ -78,7 +78,7 @@ versus/                          ← repo root (github.com/kiukairor/bigdem)
 | `postgresql` | ✅ Running | Events refreshed daily, 1 demo user with auto-updating preferences |
 | `redis` | ✅ Running | local-path StorageClass |
 | `gateway` | ✅ Running | NGINX GW Fabric v1.6.1, NodePort :30443, pulse.test only |
-| `test-svc` | ✅ Running | Multi-model chat (Gemini/Claude/OpenAI), NR instrumented via newrelic-admin, app name: pulse-ai-dontask |
+| `pulse-ai-dontask` | ✅ Running | Multi-model chat (Gemini/Claude/OpenAI), NR instrumented via newrelic-admin, NR app name: pulse-ai-dontask |
 
 Image tags are managed by CI (GitHub Actions updates values.yaml automatically on each push).
 
@@ -105,6 +105,50 @@ Bug 5 (`BUG_LIVE_REFRESH`) is UI-only: the "● LIVE" toggle in pulse-feed activ
 
 ---
 
+## Load Simulation (Locust)
+
+File: `simulation/locust/locustfile.py` — targets all backend services via the pulse-shell proxy.
+
+```bash
+cd simulation/locust
+pip install -r requirements.txt
+locust -f locustfile.py --host https://pulse.test:30443
+# Then open http://localhost:8089
+```
+
+### User classes
+
+| Class | Weight | What it does | NR signals |
+|-------|--------|-------------|------------|
+| `BaselineUser` | 3 | Browses events, reads detail, checks user prefs — no saves | APM, DB spans, baseline throughput |
+| `AIUser` | 2 | POSTs to `/recommendations` with random preference combos | ai-svc latency, circuit breaker, Redis cache hit/miss |
+| `SaveUser` | 2 | Creates sessions, saves and unsaves events | session-svc Redis + PG spans, memory leak accelerator (Bug 3) |
+| `ChatUser` | 2 | Sends messages to `/api/test-svc/chat` with model rotation; submits thumbs-up/down feedback | NR AI Monitoring: tokens, latency per model, feedback sentiment |
+| `LiveRefreshUser` | 1 | Polls event-svc at 1 req/s (`constant_throughput`) | Service map edge saturation, alert triggers (Bug 5 equivalent) |
+
+### Recommended swarm settings
+
+| Scenario | Users | Spawn rate | Purpose |
+|----------|-------|-----------|---------|
+| Baseline | 5 | 1 | Normal APM traffic, clean service map |
+| AI stress | 10 | 2 | Drives ai-svc latency — Bug 1 visible fast |
+| Memory leak | 30 | 3 | Accelerates Bug 3 session buffer growth |
+| Live refresh | 50 | 5 | ~60 rpm on event-svc, matches Bug 5 |
+| Chat / LLM | 10 | 2 | NR AI Monitoring: tokens, errors, feedback |
+| Full demo mix | 30 | 3 | All classes active, realistic production traffic |
+
+### ChatUser model rotation
+
+`gemini-2.0-flash` is included at low weight (5 out of 120 total). It is a deprecated model that will fail on the backend — errors appear in NR AI Monitoring logs and traces but the UI shows only a generic message. This is intentional: use it to demonstrate NR error detection without impacting the visible demo experience.
+
+To run only the chat load (e.g. for an NR AI Monitoring demo):
+```bash
+locust -f locustfile.py --host https://pulse.test:30443 \
+  --user-classes ChatUser --users 10 --spawn-rate 2 --headless
+```
+
+---
+
 ## Architecture
 
 ### Request flow
@@ -113,8 +157,11 @@ User → pulse-shell (3000)
      → loads pulse-feed MFE via Module Federation
      → pulse-feed → event-svc (8080) → PostgreSQL
      → pulse-feed → ai-svc (8082) → Gemini API (default) or Claude API or OpenAI API
+     → ai-svc: when caller omits events/saved-IDs, fetches from event-svc and session-svc directly
+                (creates real service-to-service HTTP spans visible in NR Service Maps)
      → ai-svc: saved event IDs enriched with full event details before AI call
      → ai-svc fallback → rule-based recs (when AI unavailable)
+     → pulse-ai-dontask /chat: fetches upcoming events from event-svc to ground LLM responses in real data
      → user saves event → event-svc → PostgreSQL
                        → event-svc auto-updates user.preferences.categories (preference feedback loop)
      → user toggles AI off → event-svc → ai_opt_out_log table → NR custom event
@@ -144,7 +191,7 @@ User → pulse-shell (3000)
 ### AI models — canonical versions (use these everywhere, do not change without updating all references)
 | Provider | Model ID | Used in |
 |----------|----------|---------|
-| Google Gemini | `gemini-3.1-flash-lite-preview` | ai-svc recommendations, sync-events CronJob, test-svc |
+| Google Gemini | `gemini-3.1-flash-lite-preview` | ai-svc recommendations, sync-events CronJob, pulse-ai-dontask |
 | Anthropic Claude | `claude-sonnet-4-6` (from `anthropic-secret.model` K8s secret) | ai-svc (when provider=claude) |
 | OpenAI | `gpt-4o-mini` (from `OPENAI_MODEL` env / `openai-secret`) | ai-svc (when provider=openai) |
 
@@ -279,11 +326,12 @@ K8s secret names used in Helm charts:
 | event-svc | NR Go Agent | APM, DB query spans |
 | ai-svc | NR Python Agent | LLM latency, circuit breaker state, token count |
 | session-svc | NR Python Agent | Redis hit/miss, session lifecycle |
-| test-svc | NR Python Agent | LLM Observability (Gemini/Claude/OpenAI auto-instrumented), LLM feedback events |
+| pulse-ai-dontask | NR Python Agent | LLM Observability: Gemini + OpenAI auto-instrumented; Claude manually via LlmChatCompletionSummary/Message custom events (NR 12.x has no mlmodel_anthropic.py hook); LLM feedback events |
 | K8s | NR Infrastructure | pod CPU/RAM, OOMKill |
 
-Custom NR events: `UserAIOptOut`, `AIFallback`, `AIServiceError`, `BugScenarioEnabled`, `PreferencesAutoUpdated`, `LlmFeedback` (via `record_llm_feedback_event` in test-svc)
-Custom NR metrics: `Custom/AICircuitBreaker/State`, `Custom/AI/ResponseMs`, `Custom/AI/TokensUsed`
+Custom NR events: `UserAIOptOut`, `AIFallback`, `AIServiceError`, `BugScenarioEnabled`, `PreferencesAutoUpdated`, `LlmFeedback` (via `record_llm_feedback_event` in pulse-ai-dontask), `LlmChatCompletionSummary`, `LlmChatCompletionMessage` (manually fired for Claude in ai-svc + pulse-ai-dontask; auto-fired by NR for OpenAI)
+Custom NR metrics: `Custom/AICircuitBreaker/State`, `Custom/AI/ResponseMs`, `Custom/AI/TokensUsed`, `Custom/LLM/InputTokens`, `Custom/LLM/OutputTokens`
+Custom NR attributes on LLM transactions: `llm.provider`, `llm.model`, `llm.input_tokens`, `llm.output_tokens`, `llm.total_tokens`
 NR Browser page actions (via `window.newrelic?.addPageAction`): `pulse.category_filter`, `pulse.live_refresh`, `pulse.event_save`, `pulse.event_unsave`, `pulse.event_save_error`, `pulse.provider_change`, `pulse.ai_toggle`, `pulse.recommendations_received`, `pulse.recommendations_error`, `pulse.chat_open`
 
 All backend services have verbose INFO/WARNING/ERROR logging at every meaningful step (request entry, cache hit/miss, AI call start/end, DB ops, fallback triggers). Frontend uses `console.info/warn/error` on all button interactions — visible in NR Browser logs and browser console during demos.
@@ -347,27 +395,57 @@ All backend services have verbose INFO/WARNING/ERROR logging at every meaningful
 - [x] Verbose logging across all services for demo visibility
   - All backends: INFO at every handler entry, cache hit/miss, AI call start/end, DB ops, fallbacks
   - Frontend: console.info/warn/error + window.newrelic?.addPageAction on every button interaction
-  - test-svc NR app name: pulse-ai-dontask
+  - pulse-ai-dontask NR app name: pulse-ai-dontask
 - [x] Preference feedback loop
   - Saving an event auto-adds its category to user.preferences (event-svc, no schema changes)
   - AI prompt enriched: saved event IDs replaced with full event title + category for better AI reasoning
   - Fires PreferencesAutoUpdated NR custom event
-- [x] LLM feedback in chat (test-svc)
+- [x] LLM feedback in chat (pulse-ai-dontask)
   - `/chat` returns `trace_id` from `newrelic.agent.current_trace_id()`
   - `POST /chat/feedback` calls `record_llm_feedback_event(trace_id, rating, message?)`
   - ChatModal: thumbs up/down per assistant message, wired to feedback endpoint
   - Routed via pulse-shell rewrite: `/api/test-svc/chat/feedback`
+  - Sentiment normalization: frontend sends "good"/"bad"; normalized to "Good"/"Bad" (NR requires capitalized form for positive/negative sentiment mapping)
 - [x] Per-category Gemini event fill
   - Thin categories (< 2 events after TM) topped up with targeted Gemini prompts per category
   - Category-specific prompts: food → supper clubs/markets, sport → 5Ks/fitness, tech → hackathons/meetups
   - Eventbrite key acquired but search API restricted to approved partners — stub in place, gracefully fails
+- [x] Semantic inter-service HTTP calls for NR Service Maps
+  - ai-svc → event-svc: fetches events when caller omits available_events (GET /events?city=)
+  - ai-svc → session-svc: fetches saved event IDs when caller omits them (GET /sessions/:id)
+  - pulse-ai-dontask → event-svc: fetches events to ground /chat responses in real upcoming data
+  - Creates real spans → edges appear on NR Service Maps (not fake traces)
+  - infra/helm/ai-svc/values.yaml + infra/helm/pulse-ai-dontask/values.yaml updated with EVENT_SVC_URL + SESSION_SVC_URL
+- [x] Claude NR instrumentation (manual — no native NR hook)
+  - NR Python agent 12.x has NO mlmodel_anthropic.py hook (only Bedrock via botocore)
+  - LangChain wrapper considered but rejected: 13 transitive deps incl. Rust/C extensions (orjson, jiter, xxhash, zstandard) → 35+ min QEMU arm64 CI build
+  - Solution: manually fire `LlmChatCompletionSummary` + `LlmChatCompletionMessage` custom events with correct schema after each Anthropic SDK call (both ai-svc and pulse-ai-dontask)
+  - These events are natively read by NR AI Monitoring UI — Claude now appears alongside Gemini/OpenAI
+- [x] Token count recording (all 3 providers, both services)
+  - `_record_tokens()` helper: reads token counts from provider response objects
+  - Adds `llm.input_tokens`, `llm.output_tokens`, `llm.total_tokens` as NR custom attributes
+  - Records `Custom/LLM/InputTokens` + `Custom/LLM/OutputTokens` as NR custom metrics
+  - google-genai SDK ≥ 1.3.0 exposes `response.usage_metadata.prompt_token_count` / `candidates_token_count`
+  - NR auto-instrumentation does NOT extract tokens from google-genai or anthropic responses; must be manual
+- [x] OpenAI key provisioned
+  - openai-secret created in cluster (`kubectl create secret generic openai-secret --from-literal=api-key=...`)
+  - `openai_client` conditionally created: `OpenAI(api_key=key) if key else None` (prevents crash on missing secret — openai>=1.x raises immediately on empty string)
+  - OPENAI_API_KEY written to config.env
+- [x] Free-text city input
+  - Header.tsx: London/Paris buttons + free-text input; on submit calls `POST /api/ai-svc/events/generate` then triggers city change
+  - Highlights active custom city in input; disables input while generating
+- [x] AI chat (pulse-ai-dontask, general-purpose)
+  - pulse-ai-dontask `POST /chat` — multi-LLM (Gemini/Claude/OpenAI), grounded in real events fetched from event-svc
+  - ChatModal.tsx in pulse-feed: thumbs up/down feedback wired to `POST /chat/feedback` → NR LLM Observability
+  - NOTE: this chat is independent of ai-svc and does NOT extract/update user preferences — see Week 4 for preference-tuning chat
 - [ ] NR dashboards: circuit breaker, opt-out rate, AI latency, token cost
 - [ ] NR alerts: error rate > 5%, p99 > 3s, memory > 80%
 - [ ] Simple auth: username + password (no email)
-- [ ] Free-text city input (see design note below)
 
 ### 🔲 Week 4
-- [ ] Bug scenarios 4-5
+- [ ] Bug scenario 4: BUG_TOKEN_FLOOD — full DB sent as AI context → token spike visible in NR LLM Observability
+- [ ] Bug scenario 6: scripted cascade — ai-svc killed → retry storm → Service Maps + Alerts
+- [ ] AI chat for preference tuning (ai-svc `POST /chat`) — distinct from pulse-ai-dontask chat; LLM extracts structured prefs from natural language and updates user profile via event-svc `PUT /user/preferences`; recommendations refresh automatically; each turn traceable in NR AI Monitoring
 - [ ] Richer event data (more categories, images, ticket URLs)
 - [ ] NR AI querying demo
 - [ ] UI polish + demo script timing
