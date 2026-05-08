@@ -14,7 +14,7 @@ from google.genai import types as genai_types
 from openai import OpenAI
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
-log = logging.getLogger("test-svc")
+log = logging.getLogger("pulse-ai-dontask")
 
 app = FastAPI()
 app.add_middleware(
@@ -118,7 +118,7 @@ def _fetch_events_context(city: str) -> str:
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "service": "test-svc"}
+    return {"status": "ok", "service": "pulse-ai-dontask"}
 
 
 @app.post("/generate")

@@ -6,7 +6,7 @@ const MODELS = [
   { value: 'gemini-3.1-flash-lite-preview', label: 'Gemini 3.1 Flash Lite' },
   { value: 'gemini-2.5-flash',              label: 'Gemini 2.5 Flash' },
   { value: 'gemini-2.5-pro',               label: 'Gemini 2.5 Pro' },
-  { value: 'gemini-2.0-flash',             label: 'Gemini 2.0 Flash (unsupported)' },
+  { value: 'gemini-2.0-flash',             label: 'Gemini 2.0 Flash' },
   { value: 'claude-sonnet-4-6',            label: 'Claude Sonnet 4.6' },
   { value: 'claude-haiku-4-5-20251001',    label: 'Claude Haiku 4.5' },
   { value: 'gpt-4o-mini',                  label: 'GPT-4o Mini' },
@@ -67,7 +67,7 @@ export default function ChatModal({ onClose, city }: Props) {
       }])
     } catch (e: any) {
       console.error(`[pulse-feed] Chat request failed: model=${model} error=${e}`)
-      setMessages(prev => [...prev, { role: 'assistant', content: e?.message || 'Something went wrong. Please try again.' }])
+      setMessages(prev => [...prev, { role: 'assistant', content: 'Something went wrong. Please try again.' }])
     } finally {
       setLoading(false)
     }
