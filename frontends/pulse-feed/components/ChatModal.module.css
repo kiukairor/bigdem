@@ -210,3 +210,39 @@
 .scoreBtnActive.scoreLow   { background: var(--red);    border-color: var(--red);    color: #fff; }
 .scoreBtnActive.scoreMid   { background: var(--text-dim); border-color: var(--text-dim); color: #000; }
 .scoreBtnActive.scoreHigh  { background: var(--green);  border-color: var(--green);  color: #000; }
+
+.feedbackTextRow {
+  display: flex;
+  margin-top: 0.35rem;
+  border: 1px solid var(--border);
+}
+
+.feedbackTextInput {
+  flex: 1;
+  background: var(--bg);
+  border: none;
+  color: var(--text);
+  font-size: 0.7rem;
+  font-family: var(--font-body);
+  padding: 0.4rem 0.6rem;
+  outline: none;
+  min-width: 0;
+}
+.feedbackTextInput::placeholder { color: var(--text-dim); }
+.feedbackTextInput:focus { border-color: var(--accent); }
+
+.feedbackSubmit {
+  background: none;
+  border: none;
+  border-left: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  font-family: var(--font-body);
+  padding: 0 0.75rem;
+  cursor: pointer;
+  transition: color 0.15s;
+  white-space: nowrap;
+}
+.feedbackSubmit:hover { color: var(--accent); }

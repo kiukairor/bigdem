@@ -20,7 +20,9 @@ interface Message {
   content: string
   model?: string
   trace_id?: string
-  feedback?: number  // 0-10
+  feedback?: number        // 0-10, set when submitted
+  pendingScore?: number    // selected but not yet submitted
+  pendingMessage?: string  // draft text for feedback comment
 }
 
 interface Props {
@@ -73,18 +75,33 @@ export default function ChatModal({ onClose, city }: Props) {
     }
   }
 
-  const sendFeedback = async (index: number, score: number) => {
+  const selectScore = (index: number, score: number) => {
     const msg = messages[index]
-    if (!msg.trace_id || msg.feedback !== undefined) return
+    if (msg.feedback !== undefined) return
+    setMessages(prev => prev.map((m, i) => i === index ? { ...m, pendingScore: score } : m))
+  }
 
-    setMessages(prev => prev.map((m, i) => i === index ? { ...m, feedback: score } : m))
-    console.info(`[pulse-feed] Chat feedback: score=${score} trace_id=${msg.trace_id}`)
+  const updatePendingMessage = (index: number, text: string) => {
+    setMessages(prev => prev.map((m, i) => i === index ? { ...m, pendingMessage: text } : m))
+  }
+
+  const sendFeedback = async (index: number) => {
+    const msg = messages[index]
+    if (!msg.trace_id || msg.feedback !== undefined || msg.pendingScore === undefined) return
+
+    const score = msg.pendingScore
+    const message = msg.pendingMessage?.trim() || undefined
+
+    setMessages(prev => prev.map((m, i) =>
+      i === index ? { ...m, feedback: score, pendingScore: undefined, pendingMessage: undefined } : m
+    ))
+    console.info(`[pulse-feed] Chat feedback: score=${score} message="${message || ''}" trace_id=${msg.trace_id}`)
 
     try {
       await fetch(`${TEST_SVC}/chat/feedback`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ trace_id: msg.trace_id, rating: score }),
+        body: JSON.stringify({ trace_id: msg.trace_id, rating: score, ...(message ? { message } : {}) }),
       })
     } catch (e) {
       console.error(`[pulse-feed] Chat feedback failed: ${e}`)
@@ -125,19 +142,39 @@ export default function ChatModal({ onClose, city }: Props) {
                 <span className={styles.msgModel}>{m.model}</span>
               )}
               {m.role === 'assistant' && m.trace_id && (
-                <div className={styles.scoreRow}>
-                  {[0,1,2,3,4,5,6,7,8,9,10].map(score => (
-                    <button
-                      key={score}
-                      className={`${styles.scoreBtn} ${scoreColor(score)} ${m.feedback === score ? styles.scoreBtnActive : ''}`}
-                      onClick={() => sendFeedback(i, score)}
-                      disabled={m.feedback !== undefined}
-                      title={`Rate ${score}/10`}
-                    >
-                      {score}
-                    </button>
-                  ))}
-                </div>
+                <>
+                  <div className={styles.scoreRow}>
+                    {[0,1,2,3,4,5,6,7,8,9,10].map(score => (
+                      <button
+                        key={score}
+                        className={`${styles.scoreBtn} ${scoreColor(score)} ${(m.feedback ?? m.pendingScore) === score ? styles.scoreBtnActive : ''}`}
+                        onClick={() => selectScore(i, score)}
+                        disabled={m.feedback !== undefined}
+                        title={`Rate ${score}/10`}
+                      >
+                        {score}
+                      </button>
+                    ))}
+                  </div>
+                  {m.pendingScore !== undefined && m.feedback === undefined && (
+                    <div className={styles.feedbackTextRow}>
+                      <input
+                        className={styles.feedbackTextInput}
+                        value={m.pendingMessage || ''}
+                        onChange={e => updatePendingMessage(i, e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); sendFeedback(i) } }}
+                        placeholder="Add a comment (optional)..."
+                        autoFocus
+                      />
+                      <button
+                        className={styles.feedbackSubmit}
+                        onClick={() => sendFeedback(i)}
+                      >
+                        SUBMIT
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           ))}
