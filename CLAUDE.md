@@ -362,7 +362,15 @@ Fields on every manually-fired `LlmChatCompletionMessage`:
 - `llm.finish_reason` — stop reason on the transaction
 - `Custom/LLM/DurationMs` — custom metric for latency alerting
 
-Custom NR events: `UserAIOptOut`, `AIFallback`, `AIServiceError`, `BugScenarioEnabled`, `PreferencesAutoUpdated`, `LlmFeedback` (via `record_llm_feedback_event` in pulse-ai-dontask), `LlmChatCompletionSummary`, `LlmChatCompletionMessage` (manually fired for all 3 providers in ai-svc + pulse-ai-dontask)
+Custom NR events: `UserAIOptOut`, `AIFallback`, `AIServiceError`, `BugScenarioEnabled`, `PreferencesAutoUpdated`, `LlmFeedbackMessage` (via `record_llm_feedback_event` in pulse-ai-dontask), `LlmChatCompletionSummary`, `LlmChatCompletionMessage` (manually fired for all 3 providers in ai-svc + pulse-ai-dontask)
+
+### LLM Feedback (pulse-ai-dontask)
+- `POST /chat/feedback` accepts `{ trace_id, rating, message? }`
+- `rating`: **numeric 0–10** (primary) or legacy string "good"/"bad"
+- `message`: free-text comment — **not yet wired in UI** (next step: add text input in ChatModal after score selection)
+- NR `record_llm_feedback_event(trace_id, rating, message=..., metadata={"source":"pulse-chat"})`
+- Dashboard query: `FROM LlmFeedbackMessage SELECT average(numeric(rating)) AS 'Avg Score' FACET llm.model`
+- `WHERE transaction_id IS NOT NULL` required on all `LlmChatCompletionSummary` queries to exclude NR auto-instrumented OpenAI noise
 Custom NR metrics: `Custom/AICircuitBreaker/State`, `Custom/AI/ResponseMs`, `Custom/AI/TokensUsed`, `Custom/LLM/InputTokens`, `Custom/LLM/OutputTokens`
 Custom NR attributes on LLM transactions: `llm.provider`, `llm.model`, `llm.input_tokens`, `llm.output_tokens`, `llm.total_tokens`
 NR Browser page actions (via `window.newrelic?.addPageAction`): `pulse.category_filter`, `pulse.live_refresh`, `pulse.event_save`, `pulse.event_unsave`, `pulse.event_save_error`, `pulse.provider_change`, `pulse.ai_toggle`, `pulse.recommendations_received`, `pulse.recommendations_error`, `pulse.chat_open`

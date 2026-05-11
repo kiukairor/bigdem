@@ -238,10 +238,13 @@ async def chat_feedback(req: FeedbackRequest):
         _RATING_MAP = {"good": "Good", "bad": "Bad", "positive": "Good", "negative": "Bad"}
         rating = _RATING_MAP.get(req.rating.lower(), req.rating.capitalize())
     log.info(f"Chat feedback: raw={req.rating} normalized={rating} trace_id={req.trace_id}")
-    newrelic.agent.record_llm_feedback_event(
-        trace_id=req.trace_id,
-        rating=rating,
-        message=req.message,
-        metadata={"source": "pulse-chat"},
-    )
+    try:
+        newrelic.agent.record_llm_feedback_event(
+            trace_id=req.trace_id,
+            rating=rating,
+            message=req.message,
+            metadata={"source": "pulse-chat"},
+        )
+    except Exception as e:
+        log.warning(f"NR feedback recording failed (non-fatal): {e}")
     return None

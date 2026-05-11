@@ -196,7 +196,7 @@ class SaveUser(PulseUser):
 
         r2 = self.client.post(
             "/api/session-svc/sessions",
-            json={"user_id": f"load_{uuid.uuid4().hex[:8]}"},
+            json={"user_id": DEMO_USER},
         )
         if r2.status_code in (200, 201):
             self.session_id = r2.json().get("session_id")
