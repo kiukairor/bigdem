@@ -3,7 +3,7 @@ replicaCount: 1
 image:
   repository: ghcr.io/kiukairor/pulse-ai-dontask
   pullPolicy: IfNotPresent
-  tag: "sha-30a4e15"
+  tag: "sha-a30773a"
 
 imagePullSecrets:
   - name: ghcr-secret
