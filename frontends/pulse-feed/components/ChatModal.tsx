@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect } from 'react'
 import styles from './ChatModal.module.css'
 
-const MODELS = [
+export const CHAT_MODELS = [
   { value: 'gemini-3.1-flash-lite-preview', label: 'Gemini 3.1 Flash Lite' },
   { value: 'gemini-2.5-flash',              label: 'Gemini 2.5 Flash' },
   { value: 'gemini-2.5-pro',               label: 'Gemini 2.5 Pro' },
@@ -15,7 +15,7 @@ const MODELS = [
 
 const TEST_SVC = process.env.NEXT_PUBLIC_TEST_SVC_URL || 'http://localhost:8090'
 
-interface Message {
+export interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
   model?: string
@@ -28,14 +28,22 @@ interface Message {
 interface Props {
   onClose: () => void
   city?: string
+  messages: ChatMessage[]
+  setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>
+  model: string
+  setModel: React.Dispatch<React.SetStateAction<string>>
 }
 
-export default function ChatModal({ onClose, city }: Props) {
-  const [messages, setMessages]   = useState<Message[]>([])
+export default function ChatModal({ onClose, city, messages, setMessages, model, setModel }: Props) {
   const [input, setInput]         = useState('')
-  const [model, setModel]         = useState(MODELS[0].value)
   const [loading, setLoading]     = useState(false)
   const bottomRef                 = useRef<HTMLDivElement>(null)
+  const feedbackInputRef          = useRef<HTMLInputElement>(null)
+
+  const pendingFeedbackIdx = messages.findIndex(m => m.pendingScore !== undefined && m.feedback === undefined)
+  useEffect(() => {
+    if (pendingFeedbackIdx !== -1) feedbackInputRef.current?.focus()
+  }, [pendingFeedbackIdx])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -124,7 +132,7 @@ export default function ChatModal({ onClose, city }: Props) {
             value={model}
             onChange={e => setModel(e.target.value)}
           >
-            {MODELS.map(m => (
+            {CHAT_MODELS.map(m => (
               <option key={m.value} value={m.value}>{m.label}</option>
             ))}
           </select>
@@ -159,12 +167,12 @@ export default function ChatModal({ onClose, city }: Props) {
                   {m.pendingScore !== undefined && m.feedback === undefined && (
                     <div className={styles.feedbackTextRow}>
                       <input
+                        ref={feedbackInputRef}
                         className={styles.feedbackTextInput}
                         value={m.pendingMessage || ''}
                         onChange={e => updatePendingMessage(i, e.target.value)}
                         onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); sendFeedback(i) } }}
                         placeholder="Add a comment (optional)..."
-                        autoFocus
                       />
                       <button
                         className={styles.feedbackSubmit}
