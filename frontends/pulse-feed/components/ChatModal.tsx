@@ -20,7 +20,7 @@ interface Message {
   content: string
   model?: string
   trace_id?: string
-  feedback?: 'good' | 'bad'
+  feedback?: number  // 0-10
 }
 
 interface Props {
@@ -73,22 +73,28 @@ export default function ChatModal({ onClose, city }: Props) {
     }
   }
 
-  const sendFeedback = async (index: number, rating: 'good' | 'bad') => {
+  const sendFeedback = async (index: number, score: number) => {
     const msg = messages[index]
-    if (!msg.trace_id || msg.feedback) return
+    if (!msg.trace_id || msg.feedback !== undefined) return
 
-    setMessages(prev => prev.map((m, i) => i === index ? { ...m, feedback: rating } : m))
-    console.info(`[pulse-feed] Chat feedback: rating=${rating} trace_id=${msg.trace_id}`)
+    setMessages(prev => prev.map((m, i) => i === index ? { ...m, feedback: score } : m))
+    console.info(`[pulse-feed] Chat feedback: score=${score} trace_id=${msg.trace_id}`)
 
     try {
       await fetch(`${TEST_SVC}/chat/feedback`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ trace_id: msg.trace_id, rating }),
+        body: JSON.stringify({ trace_id: msg.trace_id, rating: score }),
       })
     } catch (e) {
       console.error(`[pulse-feed] Chat feedback failed: ${e}`)
     }
+  }
+
+  const scoreColor = (score: number) => {
+    if (score <= 3) return styles.scoreLow
+    if (score <= 6) return styles.scoreMid
+    return styles.scoreHigh
   }
 
   return (
@@ -119,23 +125,18 @@ export default function ChatModal({ onClose, city }: Props) {
                 <span className={styles.msgModel}>{m.model}</span>
               )}
               {m.role === 'assistant' && m.trace_id && (
-                <div className={styles.feedback}>
-                  <button
-                    className={`${styles.feedbackBtn} ${m.feedback === 'good' ? styles.feedbackActive : ''}`}
-                    onClick={() => sendFeedback(i, 'good')}
-                    disabled={!!m.feedback}
-                    title="Good response"
-                  >
-                    👍
-                  </button>
-                  <button
-                    className={`${styles.feedbackBtn} ${m.feedback === 'bad' ? styles.feedbackActive : ''}`}
-                    onClick={() => sendFeedback(i, 'bad')}
-                    disabled={!!m.feedback}
-                    title="Bad response"
-                  >
-                    👎
-                  </button>
+                <div className={styles.scoreRow}>
+                  {[0,1,2,3,4,5,6,7,8,9,10].map(score => (
+                    <button
+                      key={score}
+                      className={`${styles.scoreBtn} ${scoreColor(score)} ${m.feedback === score ? styles.scoreBtnActive : ''}`}
+                      onClick={() => sendFeedback(i, score)}
+                      disabled={m.feedback !== undefined}
+                      title={`Rate ${score}/10`}
+                    >
+                      {score}
+                    </button>
+                  ))}
                 </div>
               )}
             </div>

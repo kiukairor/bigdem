@@ -176,23 +176,37 @@
 .send:hover:not(:disabled) { color: var(--accent); }
 .send:disabled { opacity: 0.3; cursor: not-allowed; }
 
-.feedback {
+.scoreRow {
   display: flex;
-  gap: 0.35rem;
-  margin-top: 0.3rem;
+  gap: 2px;
+  margin-top: 0.35rem;
   padding: 0 0.2rem;
 }
 
-.feedbackBtn {
+.scoreBtn {
+  width: 19px;
+  height: 19px;
   background: none;
-  border: none;
-  font-size: 0.8rem;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 0.5rem;
+  font-family: var(--font-body);
+  font-weight: 600;
+  letter-spacing: 0;
   cursor: pointer;
-  opacity: 0.35;
-  padding: 0;
-  line-height: 1;
-  transition: opacity 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.12s, color 0.12s, background 0.12s;
+  flex-shrink: 0;
 }
-.feedbackBtn:hover:not(:disabled) { opacity: 1; }
-.feedbackBtn:disabled { cursor: default; }
-.feedbackActive { opacity: 1; }
+.scoreBtn:hover:not(:disabled) { border-color: var(--text-dim); color: var(--text); }
+.scoreBtn:disabled { cursor: default; }
+
+.scoreLow:hover:not(:disabled)   { border-color: var(--red);    color: var(--red); }
+.scoreMid:hover:not(:disabled)   { border-color: var(--text-dim); color: var(--text); }
+.scoreHigh:hover:not(:disabled)  { border-color: var(--green);  color: var(--green); }
+
+.scoreBtnActive.scoreLow   { background: var(--red);    border-color: var(--red);    color: #fff; }
+.scoreBtnActive.scoreMid   { background: var(--text-dim); border-color: var(--text-dim); color: #000; }
+.scoreBtnActive.scoreHigh  { background: var(--green);  border-color: var(--green);  color: #000; }

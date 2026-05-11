@@ -8,7 +8,7 @@ import requests as http_requests
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Union
 from anthropic import Anthropic
 from google import genai
 from google.genai import types as genai_types
@@ -64,7 +64,7 @@ class ChatRequest(BaseModel):
 
 class FeedbackRequest(BaseModel):
     trace_id: str
-    rating: str  # "good" or "bad"
+    rating: Union[str, int]  # numeric 0-10 or legacy "good"/"bad"
     message: Optional[str] = None
 
 
@@ -231,10 +231,12 @@ async def chat(req: ChatRequest):
 
 @app.post("/chat/feedback", status_code=204)
 async def chat_feedback(req: FeedbackRequest):
-    # NR maps "Good"/"Bad" (capitalized) to positive/negative sentiment in the UI.
-    # Normalize frontend values "good"/"bad" to the expected form.
-    _RATING_MAP = {"good": "Good", "bad": "Bad", "positive": "Good", "negative": "Bad"}
-    rating = _RATING_MAP.get(req.rating.lower(), req.rating.capitalize())
+    # Numeric 0-10: pass directly. String "good"/"bad": normalize to NR expected form.
+    if isinstance(req.rating, int):
+        rating = req.rating
+    else:
+        _RATING_MAP = {"good": "Good", "bad": "Bad", "positive": "Good", "negative": "Bad"}
+        rating = _RATING_MAP.get(req.rating.lower(), req.rating.capitalize())
     log.info(f"Chat feedback: raw={req.rating} normalized={rating} trace_id={req.trace_id}")
     newrelic.agent.record_llm_feedback_event(
         trace_id=req.trace_id,
