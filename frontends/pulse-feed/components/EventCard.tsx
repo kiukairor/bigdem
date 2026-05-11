@@ -25,11 +25,11 @@ export default function EventCard({ event, saved, onSave, onOpen }: any) {
 
   return (
     <div className={styles.card} onClick={() => onOpen(event)}>
-      <div className={styles.category} style={{ color, borderColor: color }}>
-        {CATEGORY_ICONS[event.category]} {event.category.toUpperCase()}
+      <div className={styles.category} style={{ color }}>
+        {event.category.toUpperCase()}
       </div>
       <h3 className={styles.title}>{event.title}</h3>
-      <p className={styles.desc}>{event.description.slice(0, 100)}...</p>
+      <p className={styles.desc}>{event.description}</p>
       <div className={styles.meta}>
         <span className={styles.venue}>{event.venue}</span>
         <div className={styles.dateTime}>
@@ -46,7 +46,7 @@ export default function EventCard({ event, saved, onSave, onOpen }: any) {
           className={`${styles.saveBtn} ${saved ? styles.saved : ''}`}
           onClick={e => { e.stopPropagation(); onSave(event.id) }}
         >
-          {saved ? '★ SAVED' : '☆ SAVE'}
+          {saved ? '★ SAVED' : 'SAVE'}
         </button>
       </div>
     </div>

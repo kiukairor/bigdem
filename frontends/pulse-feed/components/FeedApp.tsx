@@ -245,7 +245,7 @@ export default function FeedApp({ city = 'London' }: FeedAppProps) {
                   setCategory(cat)
                 }}
               >
-                <span>{CATEGORY_ICONS[cat]}</span> {cat.toUpperCase()}
+                {cat.toUpperCase()}
               </button>
             ))}
           </div>
