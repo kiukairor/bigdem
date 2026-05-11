@@ -33,8 +33,6 @@ env:
   OPENAI_MODEL: "gpt-4o-mini"
   EVENT_SVC_URL: "http://event-svc:8080"
   SESSION_SVC_URL: "http://session-svc:8081"
-  # Bug scenario toggles — set to "true" to activate, "false" to deactivate
-  BUG_AI_SLOW: "false"
 
 resources:
   requests:

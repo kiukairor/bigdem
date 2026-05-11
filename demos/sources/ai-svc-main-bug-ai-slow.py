@@ -160,23 +160,8 @@ def get_recommendations(req: RecommendationRequest):
         f"events={len(req.available_events)} saved={len(req.saved_event_ids)} cb={cb.state}"
     )
 
-    if redis_client:
-        try:
-            cached = redis_client.get(cache_key)
-            if cached:
-                newrelic.agent.add_custom_attribute("cache_hit", True)
-                log.info(f"Cache HIT for key={cache_key} — returning cached recommendations")
-                return RecommendationResponse(
-                    recommendations=json.loads(cached),
-                    mode="ai",
-                    ai_response_ms=0,
-                    provider=provider,
-                )
-            else:
-                log.info(f"Cache MISS for key={cache_key} — will call {provider} AI")
-        except Exception as e:
-            log.warning(f"Redis read error (cache disabled for this request): {e}")
-    newrelic.agent.add_custom_attribute("cache_hit", False)
+    # TODO: re-enable cache after stale data investigation resolves
+    log.info(f"Fetching fresh recommendations from {provider} AI (cache disabled)")
 
     if cb.state == "OPEN":
         log.warning(
@@ -207,13 +192,6 @@ def get_recommendations(req: RecommendationRequest):
 
         newrelic.agent.add_custom_attribute("ai_response_ms", elapsed_ms)
         newrelic.agent.add_custom_attribute("ai_mode", "ai")
-
-        if redis_client:
-            try:
-                redis_client.setex(cache_key, REC_CACHE_TTL, json.dumps(recs))
-                log.info(f"Cached recommendations for key={cache_key} TTL={REC_CACHE_TTL}s")
-            except Exception as e:
-                log.warning(f"Redis write error (recommendations not cached): {e}")
 
         return RecommendationResponse(
             recommendations=recs,

@@ -35,6 +35,14 @@ redis_client = redis.Redis(
 
 SESSION_TTL = 3600  # 1 hour
 
+_conn_cache: dict = {}  # per-user connection cache, connections never returned to pool
+
+
+def _get_conn(user_id: str):
+    if user_id not in _conn_cache:
+        _conn_cache[user_id] = pg_pool.getconn()
+    return _conn_cache[user_id]
+
 
 class CreateSessionRequest(BaseModel):
     user_id: str
@@ -49,16 +57,13 @@ def session_key(session_id: str) -> str:
 
 
 def load_saved_events_from_db(user_id: str) -> list[str]:
-    conn = pg_pool.getconn()
-    try:
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT event_id FROM saved_events WHERE user_id = %s ORDER BY saved_at DESC",
-                (user_id,),
-            )
-            return [row[0] for row in cur.fetchall()]
-    finally:
-        pg_pool.putconn(conn)
+    conn = _get_conn(user_id)
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT event_id FROM saved_events WHERE user_id = %s ORDER BY saved_at DESC",
+            (user_id,),
+        )
+        return [row[0] for row in cur.fetchall()]
 
 
 @app.get("/health")
@@ -126,17 +131,14 @@ def save_event(session_id: str, req: SaveEventRequest):
     if already_saved:
         log.info(f"Event already saved (no-op): event_id={req.event_id} user={user_id}")
 
-    conn = pg_pool.getconn()
-    try:
-        with conn.cursor() as cur:
-            cur.execute(
-                "INSERT INTO saved_events (user_id, event_id) VALUES (%s, %s) ON CONFLICT DO NOTHING",
-                (user_id, req.event_id),
-            )
-            conn.commit()
-        log.info(f"Event persisted to DB: event_id={req.event_id} user={user_id}")
-    finally:
-        pg_pool.putconn(conn)
+    conn = _get_conn(user_id)
+    with conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO saved_events (user_id, event_id) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+            (user_id, req.event_id),
+        )
+        conn.commit()
+    log.info(f"Event persisted to DB: event_id={req.event_id} user={user_id}")
 
     if req.event_id not in session["saved_event_ids"]:
         session["saved_event_ids"].append(req.event_id)
@@ -167,17 +169,14 @@ def unsave_event(session_id: str, event_id: str):
     session = json.loads(raw)
     user_id = session["user_id"]
 
-    conn = pg_pool.getconn()
-    try:
-        with conn.cursor() as cur:
-            cur.execute(
-                "DELETE FROM saved_events WHERE user_id = %s AND event_id = %s",
-                (user_id, event_id),
-            )
-            conn.commit()
-        log.info(f"Event deleted from DB: event_id={event_id} user={user_id}")
-    finally:
-        pg_pool.putconn(conn)
+    conn = _get_conn(user_id)
+    with conn.cursor() as cur:
+        cur.execute(
+            "DELETE FROM saved_events WHERE user_id = %s AND event_id = %s",
+            (user_id, event_id),
+        )
+        conn.commit()
+    log.info(f"Event deleted from DB: event_id={event_id} user={user_id}")
 
     session["saved_event_ids"] = [e for e in session["saved_event_ids"] if e != event_id]
     redis_client.setex(session_key(session_id), SESSION_TTL, json.dumps(session))
