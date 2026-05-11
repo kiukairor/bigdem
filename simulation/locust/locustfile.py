@@ -22,7 +22,10 @@ User class weights (applied automatically when running all classes):
 import json
 import random
 import uuid
+import urllib3
 from locust import HttpUser, task, between, constant_throughput
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Models available in the chat UI — weights control how often each is picked.
 # gemini-2.0-flash is intentionally included with low weight: it will error
@@ -57,12 +60,21 @@ CITIES   = ["London", "Paris"]
 DEMO_USER = "demo_user"
 
 
-class BaselineUser(HttpUser):
+class PulseUser(HttpUser):
+    """Base class — disables TLS verification for self-signed cert on pulse.test."""
+    abstract = True
+
+    def on_start(self):
+        self.client.verify = False
+
+
+class BaselineUser(PulseUser):
     """Normal browsing — loads events, reads one, no saves. Baseline APM traffic."""
     wait_time = between(3, 8)
     weight = 3
 
     def on_start(self):
+        super().on_start()
         self.city = random.choice(CITIES)
         self.session_id = self._create_session()
         self.event_ids: list[str] = []
@@ -73,7 +85,7 @@ class BaselineUser(HttpUser):
             json={"user_id": f"load_{uuid.uuid4().hex[:8]}"},
             catch_response=True,
         ) as r:
-            if r.status_code == 200:
+            if r.status_code in (200, 201):
                 return r.json().get("session_id")
             r.failure(f"session create failed: {r.status_code}")
             return None
@@ -107,13 +119,14 @@ class BaselineUser(HttpUser):
         self.client.get("/api/event-svc/user", name="/api/event-svc/user")
 
 
-class AIUser(HttpUser):
+class AIUser(PulseUser):
     """Requests AI recommendations — stresses ai-svc and Redis cache.
     With BUG_AI_SLOW active, each task takes ~8s → latency spike in NR Distributed Tracing."""
     wait_time = between(5, 15)
     weight = 2
 
     def on_start(self):
+        super().on_start()
         self.city = random.choice(CITIES)
         self.events: list[dict] = []
         self._load_events()
@@ -131,6 +144,11 @@ class AIUser(HttpUser):
         if not self.events:
             self._load_events()
             return
+        provider = random.choices(
+            ["gemini", "claude", "openai"],
+            weights=[50, 30, 20],
+            k=1,
+        )[0]
         with self.client.post(
             "/api/ai-svc/recommendations",
             json={
@@ -141,8 +159,9 @@ class AIUser(HttpUser):
                 "saved_event_ids": [],
                 "available_events": self.events,
                 "city": self.city,
+                "provider": provider,
             },
-            name="/api/ai-svc/recommendations",
+            name=f"/api/ai-svc/recommendations",
             catch_response=True,
             timeout=20,
         ) as r:
@@ -156,13 +175,14 @@ class AIUser(HttpUser):
                 r.failure(f"ai-svc {r.status_code}")
 
 
-class SaveUser(HttpUser):
+class SaveUser(PulseUser):
     """Saves and unsaves events — drives session-svc traffic.
     With BUG_MEMORY_LEAK active, each session call grows the in-process buffer."""
     wait_time = between(2, 6)
     weight = 2
 
     def on_start(self):
+        super().on_start()
         self.city = random.choice(CITIES)
         self.session_id: str | None = None
         self.saved_ids: list[str] = []
@@ -178,7 +198,7 @@ class SaveUser(HttpUser):
             "/api/session-svc/sessions",
             json={"user_id": f"load_{uuid.uuid4().hex[:8]}"},
         )
-        if r2.status_code == 200:
+        if r2.status_code in (200, 201):
             self.session_id = r2.json().get("session_id")
 
     @task(3)
@@ -233,7 +253,7 @@ class SaveUser(HttpUser):
                 r.failure(f"unsave failed: {r.status_code}")
 
 
-class ChatUser(HttpUser):
+class ChatUser(PulseUser):
     """Drives pulse-ai-dontask /chat with realistic model rotation.
 
     Key NR demo signals:
@@ -246,6 +266,7 @@ class ChatUser(HttpUser):
     weight = 2
 
     def on_start(self):
+        super().on_start()
         self.city = random.choice(CITIES)
         self.last_trace_id: str | None = None
         self.last_model: str | None = None
@@ -296,7 +317,7 @@ class ChatUser(HttpUser):
         self.city = random.choice(CITIES)
 
 
-class LiveRefreshUser(HttpUser):
+class LiveRefreshUser(PulseUser):
     """Simulates the LIVE button — polls event-svc at ~1 req/s per user.
 
     5 users of this class → ~300 rpm on event-svc, enough to saturate the
@@ -307,6 +328,7 @@ class LiveRefreshUser(HttpUser):
     weight = 1
 
     def on_start(self):
+        super().on_start()
         self.city = random.choice(CITIES)
 
     @task(8)

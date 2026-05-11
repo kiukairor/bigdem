@@ -330,10 +330,11 @@ def _parse_recs(raw: str, req: RecommendationRequest) -> list[dict]:
 
 
 def _record_llm_event(vendor: str, model: str, prompt: str, reply: str,
-                      input_tokens: int, output_tokens: int) -> None:
+                      input_tokens: int, output_tokens: int,
+                      duration_ms: int = 0, finish_reason: str = "") -> None:
     import uuid
     request_id = str(uuid.uuid4())
-    span_id     = newrelic.agent.current_span_id()   if hasattr(newrelic.agent, "current_span_id")   else ""
+    span_id     = newrelic.agent.current_span_id() if hasattr(newrelic.agent, "current_span_id") else ""
     trace_id    = newrelic.agent.current_trace_id()
     tx          = newrelic.agent.current_transaction()
     tx_id       = tx.guid if tx else ""
@@ -346,14 +347,17 @@ def _record_llm_event(vendor: str, model: str, prompt: str, reply: str,
         "response.usage.output_tokens": output_tokens,
         "response.usage.total_tokens": input_tokens + output_tokens,
         "response.number_of_messages": 2,
+        "duration": duration_ms,
     }
+    if finish_reason:
+        base["response.choices.finish_reason"] = finish_reason
     newrelic.agent.record_custom_event("LlmChatCompletionSummary", base)
     newrelic.agent.record_custom_event("LlmChatCompletionMessage", {
-        **base, "sequence": 0, "role": "user",
+        **base, "sequence": 0, "role": "user", "is_response": False,
         "content": prompt[:4095], "completion_id": request_id,
     })
     newrelic.agent.record_custom_event("LlmChatCompletionMessage", {
-        **base, "sequence": 1, "role": "assistant",
+        **base, "sequence": 1, "role": "assistant", "is_response": True,
         "content": reply[:4095], "completion_id": request_id,
     })
 
@@ -371,49 +375,68 @@ def _record_tokens(provider: str, model: str, input_tokens: int, output_tokens: 
 
 
 def call_gemini(req: RecommendationRequest) -> list[dict]:
+    prompt = _build_prompt(req)
+    t0 = time.time()
     response = gemini_client.models.generate_content(
         model=GEMINI_MODEL,
-        contents=_build_prompt(req),
+        contents=prompt,
     )
+    duration_ms = int((time.time() - t0) * 1000)
+    input_tokens = output_tokens = 0
     if getattr(response, "usage_metadata", None):
-        _record_tokens(
-            "gemini", GEMINI_MODEL,
-            response.usage_metadata.prompt_token_count or 0,
-            response.usage_metadata.candidates_token_count or 0,
-        )
+        input_tokens  = response.usage_metadata.prompt_token_count or 0
+        output_tokens = response.usage_metadata.candidates_token_count or 0
+    if input_tokens == 0 and output_tokens == 0:
+        # Fallback for models that don't return usage_metadata (e.g. gemini-3.1-flash-lite-preview)
+        input_tokens  = max(1, len(prompt) // 4)
+        output_tokens = max(1, len(response.text) // 4)
+    _record_tokens("gemini", GEMINI_MODEL, input_tokens, output_tokens)
+    finish_reason = ""
+    if getattr(response, "candidates", None) and response.candidates:
+        finish_reason = str(getattr(response.candidates[0], "finish_reason", "") or "")
+    _record_llm_event("gemini", GEMINI_MODEL, prompt, response.text,
+                      input_tokens, output_tokens, duration_ms, finish_reason)
     return _parse_recs(response.text, req)
 
 
 def call_claude(req: RecommendationRequest) -> list[dict]:
+    prompt = _build_prompt(req)
+    t0 = time.time()
     response = anthropic_client.messages.create(
         model=CLAUDE_MODEL,
         max_tokens=256,
-        messages=[{"role": "user", "content": _build_prompt(req)}],
+        messages=[{"role": "user", "content": prompt}],
     )
+    duration_ms = int((time.time() - t0) * 1000)
     reply = response.content[0].text
-    if getattr(response, "usage", None):
-        _record_tokens("claude", CLAUDE_MODEL,
-                       response.usage.input_tokens or 0,
-                       response.usage.output_tokens or 0)
-    _record_llm_event("anthropic", CLAUDE_MODEL, _build_prompt(req), reply,
-                      getattr(response.usage, "input_tokens", 0) if response.usage else 0,
-                      getattr(response.usage, "output_tokens", 0) if response.usage else 0)
+    input_tokens  = getattr(response.usage, "input_tokens",  0) if response.usage else 0
+    output_tokens = getattr(response.usage, "output_tokens", 0) if response.usage else 0
+    _record_tokens("claude", CLAUDE_MODEL, input_tokens, output_tokens)
+    _record_llm_event("anthropic", CLAUDE_MODEL, prompt, reply,
+                      input_tokens, output_tokens, duration_ms,
+                      response.stop_reason or "")
     return _parse_recs(reply, req)
 
 
 def call_openai(req: RecommendationRequest) -> list[dict]:
+    prompt = _build_prompt(req)
+    t0 = time.time()
     response = openai_client.chat.completions.create(
         model=OPENAI_MODEL,
         max_tokens=256,
-        messages=[{"role": "user", "content": _build_prompt(req)}],
+        messages=[{"role": "user", "content": prompt}],
     )
+    duration_ms = int((time.time() - t0) * 1000)
+    reply = response.choices[0].message.content
+    input_tokens = output_tokens = 0
     if getattr(response, "usage", None):
-        _record_tokens(
-            "openai", OPENAI_MODEL,
-            response.usage.prompt_tokens or 0,
-            response.usage.completion_tokens or 0,
-        )
-    return _parse_recs(response.choices[0].message.content, req)
+        input_tokens  = response.usage.prompt_tokens or 0
+        output_tokens = response.usage.completion_tokens or 0
+    _record_tokens("openai", OPENAI_MODEL, input_tokens, output_tokens)
+    finish_reason = response.choices[0].finish_reason or "" if response.choices else ""
+    _record_llm_event("openai", OPENAI_MODEL, prompt, reply,
+                      input_tokens, output_tokens, duration_ms, finish_reason)
+    return _parse_recs(reply, req)
 
 
 def rule_based_fallback(req: RecommendationRequest) -> list[dict]:

@@ -326,10 +326,43 @@ K8s secret names used in Helm charts:
 | event-svc | NR Go Agent | APM, DB query spans |
 | ai-svc | NR Python Agent | LLM latency, circuit breaker state, token count |
 | session-svc | NR Python Agent | Redis hit/miss, session lifecycle |
-| pulse-ai-dontask | NR Python Agent | LLM Observability: Gemini + OpenAI auto-instrumented; Claude manually via LlmChatCompletionSummary/Message custom events (NR 12.x has no mlmodel_anthropic.py hook); LLM feedback events |
+| pulse-ai-dontask | NR Python Agent | LLM Observability: all 3 providers manually instrumented (see note below); LLM feedback events |
 | K8s | NR Infrastructure | pod CPU/RAM, OOMKill |
 
-Custom NR events: `UserAIOptOut`, `AIFallback`, `AIServiceError`, `BugScenarioEnabled`, `PreferencesAutoUpdated`, `LlmFeedback` (via `record_llm_feedback_event` in pulse-ai-dontask), `LlmChatCompletionSummary`, `LlmChatCompletionMessage` (manually fired for Claude in ai-svc + pulse-ai-dontask; auto-fired by NR for OpenAI)
+### NR LLM auto-instrumentation limitations (why we fire events manually)
+
+NR Python agent 12.x advertises out-of-the-box LLM Observability for all three providers. In practice, confirmed via `SELECT keyset() FROM LlmChatCompletionSummary`:
+
+| Provider | Auto fires Summary? | What it actually contains | Token counts? |
+|----------|--------------------|-----------------------------|--------------|
+| Gemini | Yes (`mlmodel_gemini.py`) | Only `timestamp` — empty shell | **No** |
+| OpenAI | Yes (`mlmodel_openai.py`) | `span_id`, `vendor`, rate-limit headers (`response.headers.ratelimit*`) — but no token fields | **No** |
+| Claude | **No** | No auto-instrumentation at all (no mlmodel_anthropic.py in NR 12.x; Bedrock/botocore only) | N/A |
+
+**Fix applied:** All three providers manually fire `LlmChatCompletionSummary` + `LlmChatCompletionMessage` via `_record_llm_event()` after each API call. Both `ai-svc/main.py` and `pulse-ai-dontask/main.py`.
+
+Fields on every manually-fired `LlmChatCompletionSummary`:
+- `response.usage.input_tokens`, `response.usage.output_tokens`, `response.usage.total_tokens`
+- `duration` — LLM call latency in ms
+- `response.choices.finish_reason` — stop_reason (Claude: "end_turn"; OpenAI: "stop"/"length"; Gemini: enum string)
+- `transaction_id` — present on all our events, absent on NR auto events (use as filter)
+
+Fields on every manually-fired `LlmChatCompletionMessage`:
+- `is_response: False` (user message, sequence=0) / `is_response: True` (assistant, sequence=1)
+- `content` truncated to 4095 chars
+
+**Side effect — OpenAI duplicate events:** NR auto-instrumentation still fires its own `LlmChatCompletionSummary` (with rate-limit headers but no tokens) alongside ours. Filter with `WHERE transaction_id IS NOT NULL` in all dashboard queries to avoid double-counting.
+
+**Why the NR curated AI Monitoring view shows tokens for Gemini/OpenAI:** it reads from `llm.input_tokens` / `llm.output_tokens` Transaction custom attributes set by `_record_tokens()`, not from `LlmChatCompletionSummary`. Separate path from our custom dashboard.
+
+**`gemini-3.1-flash-lite-preview` token estimation:** this model does not return `usage_metadata`. Fallback applies: `input ≈ len(prompt) // 4`, `output ≈ len(reply) // 4`. Numbers are approximate but non-zero.
+
+**Additional Transaction custom attributes** (set by pulse-ai-dontask `chat()` handler):
+- `llm.duration_ms` — call latency also on the transaction
+- `llm.finish_reason` — stop reason on the transaction
+- `Custom/LLM/DurationMs` — custom metric for latency alerting
+
+Custom NR events: `UserAIOptOut`, `AIFallback`, `AIServiceError`, `BugScenarioEnabled`, `PreferencesAutoUpdated`, `LlmFeedback` (via `record_llm_feedback_event` in pulse-ai-dontask), `LlmChatCompletionSummary`, `LlmChatCompletionMessage` (manually fired for all 3 providers in ai-svc + pulse-ai-dontask)
 Custom NR metrics: `Custom/AICircuitBreaker/State`, `Custom/AI/ResponseMs`, `Custom/AI/TokensUsed`, `Custom/LLM/InputTokens`, `Custom/LLM/OutputTokens`
 Custom NR attributes on LLM transactions: `llm.provider`, `llm.model`, `llm.input_tokens`, `llm.output_tokens`, `llm.total_tokens`
 NR Browser page actions (via `window.newrelic?.addPageAction`): `pulse.category_filter`, `pulse.live_refresh`, `pulse.event_save`, `pulse.event_unsave`, `pulse.event_save_error`, `pulse.provider_change`, `pulse.ai_toggle`, `pulse.recommendations_received`, `pulse.recommendations_error`, `pulse.chat_open`
