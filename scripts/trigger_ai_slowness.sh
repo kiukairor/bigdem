@@ -27,6 +27,8 @@ if [[ -n "$NEW_RELIC_USER_API_KEY" && -n "$NR_ENTITY_GUID_PULSE_AI_DONTASK" ]]; 
 fi
 echo "NR deployment markers fired."
 
+kubectl rollout restart deployment/ai-svc -n pulse-prod
+kubectl rollout restart deployment/pulse-ai-dontask -n pulse-prod
 kubectl rollout status deployment/ai-svc -n pulse-prod --timeout=60s
 kubectl rollout status deployment/pulse-ai-dontask -n pulse-prod --timeout=60s
 

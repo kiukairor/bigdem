@@ -42,6 +42,8 @@ fi
 echo "NR markers fired."
 
 # Wait for both pods to be ready
+kubectl rollout restart deployment/ai-svc -n pulse-prod
+kubectl rollout restart deployment/pulse-ai-dontask -n pulse-prod
 kubectl rollout status deployment/ai-svc -n pulse-prod --timeout=60s
 kubectl rollout status deployment/pulse-ai-dontask -n pulse-prod --timeout=60s
 
