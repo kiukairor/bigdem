@@ -195,6 +195,11 @@ def get_recommendations(req: RecommendationRequest):
             provider=provider,
         )
 
+    if os.getenv("BUG_AI_SLOW", "false").lower() == "true":
+        log.warning("BUG_AI_SLOW active — injecting 8s delay before AI call")
+        newrelic.agent.add_custom_attribute("bug_ai_slow", True)
+        time.sleep(8)
+
     try:
         recs = call_ai(req, provider)
         elapsed_ms = int((time.time() - start) * 1000)
