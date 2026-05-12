@@ -340,6 +340,9 @@ def _record_llm_event(vendor: str, model: str, prompt: str, reply: str,
         "response.usage.input_tokens": input_tokens,
         "response.usage.output_tokens": output_tokens,
         "response.usage.total_tokens": input_tokens + output_tokens,
+        # OpenAI-convention aliases — required by NR curated AI Monitoring queries
+        "response.usage.prompt_tokens": input_tokens,
+        "response.usage.completion_tokens": output_tokens,
         "response.number_of_messages": 2,
         "duration": duration_ms,
     }
@@ -349,10 +352,12 @@ def _record_llm_event(vendor: str, model: str, prompt: str, reply: str,
     newrelic.agent.record_custom_event("LlmChatCompletionMessage", {
         **base, "sequence": 0, "role": "user", "is_response": False,
         "content": prompt[:4095], "completion_id": request_id,
+        "token_count": input_tokens,
     })
     newrelic.agent.record_custom_event("LlmChatCompletionMessage", {
         **base, "sequence": 1, "role": "assistant", "is_response": True,
         "content": reply[:4095], "completion_id": request_id,
+        "token_count": output_tokens,
     })
 
 
