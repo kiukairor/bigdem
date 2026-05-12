@@ -39,6 +39,7 @@ export default function ChatModal({ onClose, city, messages, setMessages, model,
   const [loading, setLoading]     = useState(false)
   const bottomRef                 = useRef<HTMLDivElement>(null)
   const feedbackInputRef          = useRef<HTMLInputElement>(null)
+  const submittingRef             = useRef<Set<number>>(new Set())
 
   const pendingFeedbackIdx = messages.findIndex(m => m.pendingScore !== undefined && m.feedback === undefined)
   useEffect(() => {
@@ -96,7 +97,9 @@ export default function ChatModal({ onClose, city, messages, setMessages, model,
   const sendFeedback = async (index: number) => {
     const msg = messages[index]
     if (!msg.trace_id || msg.feedback !== undefined || msg.pendingScore === undefined) return
+    if (submittingRef.current.has(index)) return  // guard against React state race on double-click
 
+    submittingRef.current.add(index)
     const score = msg.pendingScore
     const message = msg.pendingMessage?.trim() || undefined
 
@@ -113,6 +116,8 @@ export default function ChatModal({ onClose, city, messages, setMessages, model,
       })
     } catch (e) {
       console.error(`[pulse-feed] Chat feedback failed: ${e}`)
+    } finally {
+      submittingRef.current.delete(index)
     }
   }
 

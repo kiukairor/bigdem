@@ -56,6 +56,23 @@ _CHAT_MESSAGES = [
     "What's the best event for a first date in {city}?",
 ]
 
+# Optional free-text messages attached to feedback — makes NR LlmFeedbackMessage.message richer for demos.
+# None entries mean no message is sent (25% of the time).
+_FEEDBACK_MESSAGES_GOOD = [
+    "Very helpful, found exactly what I was looking for",
+    "Great recommendations for the area",
+    "Exactly the kind of events I like",
+    "Perfect suggestions, thanks",
+    None,
+]
+_FEEDBACK_MESSAGES_BAD = [
+    "Not quite what I wanted",
+    "Response was too generic",
+    "These events don't match my interests",
+    "Could be more specific",
+    None,
+]
+
 CITIES   = ["London", "Paris"]
 DEMO_USER = "demo_user"
 
@@ -300,9 +317,14 @@ class ChatUser(PulseUser):
         if not self.last_trace_id:
             return
         rating = random.choices(["good", "bad"], weights=[75, 25], k=1)[0]
+        msg_pool = _FEEDBACK_MESSAGES_GOOD if rating == "good" else _FEEDBACK_MESSAGES_BAD
+        message = random.choice(msg_pool)
+        payload: dict = {"trace_id": self.last_trace_id, "rating": rating}
+        if message:
+            payload["message"] = message
         with self.client.post(
             "/api/test-svc/chat/feedback",
-            json={"trace_id": self.last_trace_id, "rating": rating},
+            json=payload,
             name="/api/test-svc/chat/feedback",
             catch_response=True,
         ) as r:

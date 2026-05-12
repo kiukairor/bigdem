@@ -3,6 +3,7 @@ newrelic.agent.initialize()
 
 import os
 import time
+import uuid
 import logging
 import requests as http_requests
 from fastapi import FastAPI, HTTPException
@@ -71,8 +72,7 @@ class FeedbackRequest(BaseModel):
 
 def _record_llm_event(vendor: str, model: str, prompt: str, reply: str,
                       input_tokens: int, output_tokens: int,
-                      duration_ms: int = 0, finish_reason: str = "") -> None:
-    import uuid
+                      duration_ms: int = 0, finish_reason: str = "") -> str:
     request_id = str(uuid.uuid4())
     span_id    = newrelic.agent.current_span_id() if hasattr(newrelic.agent, "current_span_id") else ""
     trace_id   = newrelic.agent.current_trace_id()
@@ -105,6 +105,7 @@ def _record_llm_event(vendor: str, model: str, prompt: str, reply: str,
         "content": reply[:4095], "completion_id": request_id,
         "token_count": output_tokens,
     })
+    return trace_id or ""
 
 
 def _fetch_events_context(city: str) -> str:
@@ -175,8 +176,8 @@ async def chat(req: ChatRequest):
                 output_tokens = max(1, len(reply) // 4)
             if getattr(response, "candidates", None) and response.candidates:
                 finish_reason = str(getattr(response.candidates[0], "finish_reason", "") or "")
-            _record_llm_event("gemini", req.model, req.message, reply,
-                              input_tokens, output_tokens, duration_ms, finish_reason)
+            trace_id = _record_llm_event("gemini", req.model, req.message, reply,
+                                         input_tokens, output_tokens, duration_ms, finish_reason)
 
         elif provider == "claude":
             t0 = time.time()
@@ -192,8 +193,8 @@ async def chat(req: ChatRequest):
                 input_tokens  = response.usage.input_tokens or 0
                 output_tokens = response.usage.output_tokens or 0
             finish_reason = response.stop_reason or ""
-            _record_llm_event("anthropic", req.model, req.message, reply,
-                              input_tokens, output_tokens, duration_ms, finish_reason)
+            trace_id = _record_llm_event("anthropic", req.model, req.message, reply,
+                                         input_tokens, output_tokens, duration_ms, finish_reason)
 
         else:
             if not openai_client:
@@ -212,8 +213,8 @@ async def chat(req: ChatRequest):
                 input_tokens  = response.usage.prompt_tokens or 0
                 output_tokens = response.usage.completion_tokens or 0
             finish_reason = response.choices[0].finish_reason or "" if response.choices else ""
-            _record_llm_event("openai", req.model, req.message, reply,
-                              input_tokens, output_tokens, duration_ms, finish_reason)
+            trace_id = _record_llm_event("openai", req.model, req.message, reply,
+                                         input_tokens, output_tokens, duration_ms, finish_reason)
 
     except HTTPException:
         raise
@@ -221,7 +222,7 @@ async def chat(req: ChatRequest):
         log.error(f"Chat LLM call failed: model={req.model} provider={provider} error={e}")
         raise HTTPException(status_code=502, detail=str(e))
 
-    trace_id = newrelic.agent.current_trace_id()
+    # trace_id comes from _record_llm_event — guaranteed to match what was embedded in NR events
     total_tokens = input_tokens + output_tokens
     newrelic.agent.add_custom_attribute("llm.model", req.model)
     newrelic.agent.add_custom_attribute("llm.provider", provider)
@@ -264,14 +265,24 @@ async def chat_feedback(req: FeedbackRequest):
         category = "positive" if str(rating).lower() in ("good", "positive") else "negative"
 
     log.info(f"Chat feedback: raw={req.rating} rating={rating} category={category} trace_id={req.trace_id}")
+
+    if not req.trace_id:
+        log.warning("Chat feedback received with empty trace_id — skipping NR recording (would create orphan event)")
+        return None
+
     try:
-        newrelic.agent.record_llm_feedback_event(
-            trace_id=req.trace_id,
-            rating=rating,
-            category=category,
-            message=req.message,
-            metadata={"source": "pulse-chat"},
-        )
+        # NR Python agent 12.0.0 silently drops category/message from record_llm_feedback_event
+        # (confirmed via keyset() on LlmFeedbackMessage — only trace_id+rating survive).
+        # Fire the event manually so all fields are stored and the sentiment column is populated.
+        newrelic.agent.record_custom_event("LlmFeedbackMessage", {
+            "id": str(uuid.uuid4()),
+            "trace_id": req.trace_id,
+            "rating": rating,
+            "category": category,
+            "message": req.message or "",
+            "ingest_source": "Python",
+            "source": "pulse-chat",
+        })
     except Exception as e:
         log.warning(f"NR feedback recording failed (non-fatal): {e}")
     return None
