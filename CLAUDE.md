@@ -93,15 +93,33 @@ Core narrative:
 
 | # | Env Flag / Trigger | Bug | NR Feature |
 |---|-------------------|-----|------------|
-| 1 | `BUG_AI_SLOW=true` | AI call delayed 8s (Gemini or Claude) | Distributed Tracing |
+| 1 | `BUG_AI_SLOW=true` | AI call delayed 8s — **both ai-svc and pulse-ai-dontask** | Distributed Tracing |
 | 2 | `BUG_STALE_CACHE=true` | Events return wrong dates, no errors | Logs in Context |
 | 3 | `BUG_MEMORY_LEAK=true` | session-svc accumulates connections | Infrastructure monitoring |
 | 4 | `BUG_TOKEN_FLOOD=true` | Full DB sent as Claude context every request | LLM Observability |
 | 5 | UI "LIVE" button | 1s polling of event-svc (~60 req/min) | Service Maps + Alerts |
 | 6 | Scripted | ai-svc killed → retry storm → cascade | Service Maps + Alerts |
 
-Bugs 1-4 are toggled via Helm values.yaml env vars — no redeployment needed, just a git push.
+Bugs 1-4 are toggled via Helm values.yaml env vars. **Do not use `git push` alone to trigger bug 1** — CI rebuilds the image (3-5 min arm64 build). Instead use the demo scripts which call `kubectl set env` + `kubectl rollout restart` for instant effect (~20s).
+
 Bug 5 (`BUG_LIVE_REFRESH`) is UI-only: the "● LIVE" toggle in pulse-feed activates 1s polling of event-svc. AI recommendation refresh is a separate background timer set to every 4 hours.
+
+### Demo scripts (`scripts/`)
+
+| Script | What it does |
+|--------|-------------|
+| `demo_ai_slow.sh [seconds]` | Full narrative: 3 min baseline Locust → inject BUG_AI_SLOW on both AI services + fire NR markers + flush Redis → 3 min spike Locust. Pass a number to override phase duration (e.g. `60` for a quick test). |
+| `trigger_ai_slowness.sh` | Inject BUG_AI_SLOW instantly — `kubectl set env` + `rollout restart` on both AI services, NR markers fired via API, values.yaml pushed to git in background. |
+| `revert_ai_slowness.sh` | Undo BUG_AI_SLOW instantly — same mechanism, cleans both services. |
+
+**How instant deployment works (no CI):**
+`kubectl set env deployment/<svc> BUG_AI_SLOW=true` updates the Deployment spec in K8s directly. `kubectl rollout restart` then forces a pod replacement from the current spec. Total time: ~20s. CI is not involved. The values.yaml git push runs in the background to keep GitOps state clean — ArgoCD will reconcile but the live pod is already correct.
+
+**Why `rollout restart` and not just `rollout status`:**
+`kubectl set env` updates the spec but if ArgoCD re-synced mid-flight with a stale values.yaml the running pod can still have the old env. `rollout restart` unconditionally terminates and recreates the pod — it's the reliable path.
+
+**NR deployment markers in demo scripts:**
+Fired via NR NerdGraph API (`api.eu.newrelic.com/graphql`) using `NEW_RELIC_USER_API_KEY` + `NR_ENTITY_GUID_AI_SVC` / `NR_ENTITY_GUID_PULSE_AI_DONTASK` from `config.env`. Markers appear instantly in NR charts — the vertical line lands before the spike, which is the intended demo story.
 
 ---
 
@@ -343,6 +361,7 @@ NR Python agent 12.x advertises out-of-the-box LLM Observability for all three p
 
 Fields on every manually-fired `LlmChatCompletionSummary`:
 - `response.usage.input_tokens`, `response.usage.output_tokens`, `response.usage.total_tokens`
+- `response.usage.prompt_tokens`, `response.usage.completion_tokens` — OpenAI-convention aliases, **required by NR curated AI Monitoring queries** (NR dashboard NRQL uses `prompt_tokens`/`completion_tokens` regardless of provider; without these aliases Claude and Gemini events return null in those queries)
 - `duration` — LLM call latency in ms
 - `response.choices.finish_reason` — stop_reason (Claude: "end_turn"; OpenAI: "stop"/"length"; Gemini: enum string)
 - `transaction_id` — present on all our events, absent on NR auto events (use as filter)
@@ -350,6 +369,7 @@ Fields on every manually-fired `LlmChatCompletionSummary`:
 Fields on every manually-fired `LlmChatCompletionMessage`:
 - `is_response: False` (user message, sequence=0) / `is_response: True` (assistant, sequence=1)
 - `content` truncated to 4095 chars
+- `token_count` — input tokens on user message (sequence=0), output tokens on assistant message (sequence=1). Required by NR curated queries that sum `token_count` from `LlmChatCompletionMessage`.
 
 **Side effect — OpenAI duplicate events:** NR auto-instrumentation still fires its own `LlmChatCompletionSummary` (with rate-limit headers but no tokens) alongside ours. Filter with `WHERE transaction_id IS NOT NULL` in all dashboard queries to avoid double-counting.
 
@@ -423,7 +443,7 @@ All backend services have verbose INFO/WARNING/ERROR logging at every meaningful
 
 ### 🔄 Week 3 — IN PROGRESS
 - [x] Bug scenarios 1-3 as env flag toggles (BUG_AI_SLOW, BUG_STALE_CACHE, BUG_MEMORY_LEAK)
-  - BUG_AI_SLOW: 8s sleep in ai-svc before Gemini/Claude call, cache bypassed so delay is always visible
+  - BUG_AI_SLOW: 8s sleep injected before the AI call in **both ai-svc** (recommendations) **and pulse-ai-dontask** (chat) — both services go slow simultaneously for maximum NR demo impact. Redis flushed before phase 2 so every request hits the sleep (no cache masking).
   - BUG_STALE_CACHE: event-svc shifts all event dates back 45 days silently
   - BUG_MEMORY_LEAK: session-svc appends session payloads to a global list on every request, never freed
   - Each bug fires `BugScenarioEnabled` custom event to NR; toggle is one line in infra/helm/<svc>/values.yaml + git push
