@@ -3,7 +3,7 @@ replicaCount: 1
 image:
   repository: ghcr.io/kiukairor/pulse-feed
   pullPolicy: IfNotPresent
-  tag: "sha-e0324ee"
+  tag: "sha-4291a8f"
 
 imagePullSecrets:
   - name: ghcr-secret
