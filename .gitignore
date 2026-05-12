@@ -44,3 +44,4 @@ secrets/
 
 # Local config with real secrets — never commit
 config.env
+AI_TAKEAWAYS.md
