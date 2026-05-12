@@ -66,6 +66,7 @@ class FeedbackRequest(BaseModel):
     trace_id: str
     rating: Union[str, int]  # numeric 0-10 or legacy "good"/"bad"
     message: Optional[str] = None
+    category: Optional[str] = None  # explicit override; derived from rating if absent
 
 
 def _record_llm_event(vendor: str, model: str, prompt: str, reply: str,
@@ -241,17 +242,33 @@ async def chat(req: ChatRequest):
 
 @app.post("/chat/feedback", status_code=204)
 async def chat_feedback(req: FeedbackRequest):
-    # Numeric 0-10: pass directly. String "good"/"bad": normalize to NR expected form.
+    # Normalise rating
     if isinstance(req.rating, int):
         rating = req.rating
     else:
         _RATING_MAP = {"good": "Good", "bad": "Bad", "positive": "Good", "negative": "Bad"}
         rating = _RATING_MAP.get(req.rating.lower(), req.rating.capitalize())
-    log.info(f"Chat feedback: raw={req.rating} normalized={rating} trace_id={req.trace_id}")
+
+    # Derive category (→ NR sentiment column) if not explicitly provided
+    if req.category:
+        category = req.category
+    elif isinstance(rating, int):
+        if rating >= 7:
+            category = "positive"
+        elif rating <= 3:
+            category = "negative"
+        else:
+            category = "neutral"
+    else:
+        # string rating: "Good" → positive, anything else → negative
+        category = "positive" if str(rating).lower() in ("good", "positive") else "negative"
+
+    log.info(f"Chat feedback: raw={req.rating} rating={rating} category={category} trace_id={req.trace_id}")
     try:
         newrelic.agent.record_llm_feedback_event(
             trace_id=req.trace_id,
             rating=rating,
+            category=category,
             message=req.message,
             metadata={"source": "pulse-chat"},
         )
