@@ -316,8 +316,10 @@ class ChatUser(PulseUser):
     def send_feedback(self):
         if not self.last_trace_id:
             return
-        rating = random.choices(["good", "bad"], weights=[75, 25], k=1)[0]
-        msg_pool = _FEEDBACK_MESSAGES_GOOD if rating == "good" else _FEEDBACK_MESSAGES_BAD
+        # Use numeric scale (0-10) — consistent with UI; backend derives category from value.
+        # 8 = good (~75%), 2 = bad (~25%)
+        rating = random.choices([8, 2], weights=[75, 25], k=1)[0]
+        msg_pool = _FEEDBACK_MESSAGES_GOOD if rating == 8 else _FEEDBACK_MESSAGES_BAD
         message = random.choice(msg_pool)
         payload: dict = {"trace_id": self.last_trace_id, "rating": rating}
         if message:
