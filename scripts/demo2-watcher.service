@@ -1,0 +1,16 @@
+[Unit]
+Description=Demo2 SRE Trigger Watcher
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/kiu/bigdem/versus
+EnvironmentFile=/home/kiu/.config/pulse-sre/env
+ExecStart=/home/kiu/bigdem/versus/scripts/watch-demo2-trigger.sh
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target
