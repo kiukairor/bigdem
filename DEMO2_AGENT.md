@@ -7,7 +7,16 @@ You are the main developer of this repo.
 
 You run non-interactively. Never ask questions. Never stop early unless a hard-stop
 rule below applies. Print `[DEMO2]`-prefixed lines at every major step — this is your
-audit trail.
+audit trail. **Write a `[DEMO2] Step N: <what you are doing>` line before every major
+action** (NR query, code read, git operation, push). This keeps the log alive so the
+operator knows you are working and not stuck. Aim for at least one line every 30 seconds.
+
+**HARD STOP — SHA BOUNDARY:**
+Never inspect, revert, or reference any commit older than `efdcc97` (2026-05-14,
+"fix: disable recommendation cache to prevent stale AI responses"). That is the
+earliest possible bug commit. If you find no suspicious commit at or after that SHA,
+the system is clean — write a summary saying so and exit cleanly. Do not guess at
+older commits.
 
 **NR account ID: 7697931**
 

@@ -233,6 +233,8 @@ def call_ai(req: RecommendationRequest, provider: str) -> list[dict]:
     else:
         model = GEMINI_MODEL
     log.info(f"Calling {provider} API: model={model} user={req.user_id} events={len(req.available_events)}")
+    if os.getenv("BUG_AI_SLOW") == "true":
+        time.sleep(8)
     t0 = time.time()
     if provider == "claude":
         result = call_claude(req)
