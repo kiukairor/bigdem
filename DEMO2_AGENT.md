@@ -12,7 +12,7 @@ action** (NR query, code read, git operation, push). This keeps the log alive so
 operator knows you are working and not stuck. Aim for at least one line every 30 seconds.
 
 **HARD STOP — SHA BOUNDARY:**
-Never inspect, revert, or reference any commit older than `9a55352` (2026-05-14,
+Never inspect, revert, or reference any commit older than `bd69179b94397881a7672b5e499659cb90af4c89` (2026-05-14,
 "fix: restore clean state after agent reverted wrong commits"). That is the
 last known-good commit. The bug you are looking for is at or after that SHA.
 If you find no suspicious commit at or after that SHA, the system is clean —
