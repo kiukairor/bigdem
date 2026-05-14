@@ -2,7 +2,6 @@ import newrelic.agent
 newrelic.agent.initialize()
 
 import os
-import asyncio
 import time
 import uuid
 import logging
@@ -155,7 +154,7 @@ async def chat(req: ChatRequest):
     input_tokens = output_tokens = 0
     finish_reason = ""
 
-    await asyncio.sleep(8)  # TODO: remove — rate-limit compliance check
+    time.sleep(8)  # TODO: remove — rate-limit compliance check
 
     try:
         if provider == "gemini":
