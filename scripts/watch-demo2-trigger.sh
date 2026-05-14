@@ -1,6 +1,11 @@
 #!/bin/bash
 # Demo 2 file watcher — wakes on inotify write events on .sre-demo2-trigger.
-# Spawns: claude -p DEMO2_AGENT.md when a real issueId appears.
+# Spawns claude with DEMO2_AGENT.md as system prompt when a real issueId appears.
+#
+# Locking discipline:
+#   The flock on LOCK_FILE is acquired BEFORE any write to the trigger file.
+#   This ensures a relay writing a new UUID while an agent is running cannot
+#   overwrite the "investigating" stamp or redirect the in-flight investigation.
 
 TRIGGER_FILE="/home/kiu/bigdem/versus/.sre-demo2-trigger"
 TRIGGER_DIR="$(dirname "$TRIGGER_FILE")"
@@ -21,8 +26,8 @@ fire_if_triggered() {
     RAW=$(tr -d '[:space:]' < "$TRIGGER_FILE")
     if echo "$RAW" | grep -qE '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'; then
       ISSUE_ID="$RAW"
-      echo "{\"issueId\":\"$ISSUE_ID\"}" > "$TRIGGER_FILE"
-      echo "[$(date)] Trigger normalised from raw UUID to JSON — issueId=$ISSUE_ID" >> "$LOG_FILE"
+      # Do NOT write to trigger file here — write only after acquiring the lock
+      # below, so a new relay trigger cannot overwrite an in-flight investigation.
     fi
   fi
 
@@ -32,7 +37,20 @@ fire_if_triggered() {
   echo "[$(date)] Trigger detected — issueId=$ISSUE_ID" >> "$LOG_FILE"
 
   (
-    flock -n 200 || { echo "[$(date)] Already running, skipping." >> "$LOG_FILE"; exit 1; }
+    # Acquire the lock FIRST — if an agent is already running this exits immediately
+    # without touching the trigger file, so the in-flight investigation is unaffected.
+    flock -n 200 || { echo "[$(date)] Agent already running — new trigger queued, will retry on next write." >> "$LOG_FILE"; exit 1; }
+
+    # We now hold the lock. Safe to normalise the trigger file.
+    CURRENT_ID=$(jq -r '.issueId // empty' "$TRIGGER_FILE" 2>/dev/null)
+    if [ -z "$CURRENT_ID" ]; then
+      echo "{\"issueId\":\"$ISSUE_ID\"}" > "$TRIGGER_FILE"
+      echo "[$(date)] Trigger normalised from raw UUID to JSON — issueId=$ISSUE_ID" >> "$LOG_FILE"
+    else
+      # Another process already wrote JSON (e.g. a concurrent relay write);
+      # use the issueId that is now in the file to avoid a mismatch.
+      ISSUE_ID="$CURRENT_ID"
+    fi
 
     cd "$WORKDIR"
     source ~/.config/pulse-sre/env 2>/dev/null
