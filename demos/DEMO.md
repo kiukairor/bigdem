@@ -47,11 +47,12 @@ git add services/ai-svc/main.py services/pulse-ai-dontask/main.py \
         infra/helm/ai-svc/values.yaml infra/helm/pulse-ai-dontask/values.yaml
 git commit -m "fix: disable recommendation cache to prevent stale AI responses"
 BUG_SHA=$(git rev-parse HEAD)
-# Update agent boundary so it looks exactly at this commit, nothing older
-sed -i "s/Never inspect, revert, or reference any commit older than \`[0-9a-f]*\`/Never inspect, revert, or reference any commit older than \`$BUG_SHA\`/" DEMO2_AGENT.md
-sed -i "s/Never inspect, revert, or reference any commit older than \`[0-9a-f]*\`/Never inspect, revert, or reference any commit older than \`$BUG_SHA\`/" SRE_AGENT.md
+CLEAN_SHA=$(git rev-parse HEAD^)
+# Boundary = commit BEFORE the bug so the agent can unambiguously revert BUG_SHA
+sed -i "s/Never inspect, revert, or reference any commit older than \`[0-9a-f]*\`/Never inspect, revert, or reference any commit older than \`$CLEAN_SHA\`/" DEMO2_AGENT.md
+sed -i "s/Never inspect, revert, or reference any commit older than \`[0-9a-f]*\`/Never inspect, revert, or reference any commit older than \`$CLEAN_SHA\`/" SRE_AGENT.md
 git add DEMO2_AGENT.md SRE_AGENT.md
-git commit -m "chore: update agent SHA boundary to $BUG_SHA [skip ci]"
+git commit -m "chore: update agent SHA boundary to $CLEAN_SHA [skip ci]"
 git push origin main
 ```
 
