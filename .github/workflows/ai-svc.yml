@@ -92,6 +92,7 @@ jobs:
         with:
           apiKey: ${{ secrets.NEW_RELIC_USER_API_KEY }}
           guid: ${{ secrets.NR_ENTITY_GUID_AI_SVC }}
+          region: EU
           version: ${{ github.sha }}
           description: ${{ github.event.head_commit.message }}
           user: ${{ github.actor }}
