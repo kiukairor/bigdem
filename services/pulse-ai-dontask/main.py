@@ -155,7 +155,8 @@ async def chat(req: ChatRequest):
     input_tokens = output_tokens = 0
     finish_reason = ""
 
-    await asyncio.sleep(8)  # TODO: remove — rate-limit compliance check
+    if os.getenv("BUG_AI_SLOW") == "true":
+        await asyncio.sleep(8)
 
     try:
         if provider == "gemini":
