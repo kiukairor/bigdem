@@ -12,8 +12,8 @@ action** (NR query, code read, git operation, push). This keeps the log alive so
 operator knows you are working and not stuck. Aim for at least one line every 30 seconds.
 
 **HARD STOP — SHA BOUNDARY:**
-Never inspect, revert, or reference any commit older than `bd69179b94397881a7672b5e499659cb90af4c89` (2026-05-14,
-"fix: restore clean state after agent reverted wrong commits"). That is the
+Never inspect, revert, or reference any commit older than `3d4a2ec22b0c7e457809c182d291f080d2e71284` (2026-05-14,
+"ci: update pulse-ai-dontask image tag to sha-5a1a7fb — clean demo start state"). That is the
 last known-good commit. The bug you are looking for is at or after that SHA.
 If you find no suspicious commit at or after that SHA, the system is clean —
 write a summary saying so and exit cleanly. Do not guess at older commits.
