@@ -33,14 +33,15 @@ to correlate). Match the NR alert signal to the most likely pattern:
 | ai-svc p95 latency spike (> 3–5 s) | `BUG_AI_SLOW` — `time.sleep(8)` injected before AI call | `services/ai-svc/main.py` — recommendations handler |
 | pulse-ai-dontask latency spike | `BUG_AI_SLOW` — same sleep in chat handler | `services/pulse-ai-dontask/main.py` — `/chat` handler |
 | ai-svc + pulse-ai-dontask both slow simultaneously | `BUG_AI_SLOW` spans both services — look for sleep in both | Both files above |
+| same latency spike but NO code change in services/ | `BUG_AI_SLOW: "true"` set in Helm values — env-var trigger, no code rewrite | `infra/helm/ai-svc/values.yaml` and/or `infra/helm/pulse-ai-dontask/values.yaml` |
 | event-svc returning stale/wrong dates, no errors | `BUG_STALE_CACHE` — event dates shifted -45 days in Go handler | `services/event-svc/cmd/main.go` — events handler |
 | session-svc memory growing, connection errors | `BUG_MEMORY_LEAK` — global list accumulating session payloads | `services/session-svc/main.py` — session handler |
 | LLM token count spike (NR AI Monitoring) | `BUG_TOKEN_FLOOD` — full DB rows passed as AI context | `services/ai-svc/main.py` or `pulse-ai-dontask/main.py` |
 
-The bad commit will always touch files under `services/` — the trigger process copies
-files from `demos/sources/` into the real service directories and commits those. Look
-for changes to `services/ai-svc/main.py`, `services/pulse-ai-dontask/main.py`,
-`services/event-svc/cmd/main.go`, or `services/session-svc/main.py`.
+The bad commit typically touches files under `services/` (code-level bug injection) OR
+`infra/helm/` (env-var toggle). Both are valid trigger methods. Look for:
+- `services/ai-svc/main.py`, `services/pulse-ai-dontask/main.py`, `services/event-svc/cmd/main.go`, `services/session-svc/main.py`
+- `infra/helm/ai-svc/values.yaml` or `infra/helm/pulse-ai-dontask/values.yaml` — a `BUG_*: "true"` line being added/changed
 
 ---
 
@@ -180,21 +181,23 @@ bad commit sits in production, and the alert fires at 8–9am when traffic picks
 The marker timestamp and the alert timestamp can be hours apart. Never discard a
 commit solely because its timestamp is far from `openedAt`.
 
-**Primary strategy: scan git log for `demos/sources/` commits.**
+**Primary strategy: scan git log for commits touching services/ OR infra/helm/.**
 
-In this repo every demo bug is introduced by committing a file under `demos/sources/`.
-That path filter is timing-independent and reliable:
+Bugs can be introduced two ways — either is valid:
+1. Code-level: a file under `services/` is replaced with a buggy version from `demos/sources/`
+2. Env-var toggle: `infra/helm/<svc>/values.yaml` has a `BUG_*` flag flipped to `"true"`
+
+Both paths leave a git commit. Search both:
 
 ```bash
 git fetch origin
-git log --oneline --since="48 hours ago" -- services/
+git log --oneline --since="48 hours ago" -- services/ infra/helm/
 ```
 
-This returns every commit in the last 48 hours that touched the service source files.
 If that returns nothing, widen the window:
 
 ```bash
-git log --oneline --since="7 days ago" -- services/
+git log --oneline --since="7 days ago" -- services/ infra/helm/
 ```
 
 Inspect each candidate:
@@ -400,7 +403,8 @@ corrected version of the affected file. The fix must:
 
 **Fix recipes (use the one that matches the detected pattern):**
 
-- **BUG_AI_SLOW** (`time.sleep`): remove the sleep entirely. Do not replace it with a shorter sleep.
+- **BUG_AI_SLOW** (`time.sleep` in service code): remove the sleep entirely. Do not replace it with a shorter sleep.
+- **BUG_AI_SLOW** (values.yaml env-var flip): if the bad commit only changes `infra/helm/*/values.yaml`, reverting it is sufficient — `git revert <BAD_SHA> --no-edit` sets the flag back to `"false"` and ArgoCD redeploys without a CI image rebuild (~20s, not ~7min).
 - **BUG_STALE_CACHE** (date shift): restore the correct date field — event dates must come from the DB unchanged, no offset arithmetic.
 - **BUG_MEMORY_LEAK** (global list): remove the append to the global list, or clear it after use. The session data must not accumulate across requests.
 - **BUG_TOKEN_FLOOD** (full DB in context): restore the correct slice/limit — the AI prompt must only receive the user's saved events and preferences, not all rows.

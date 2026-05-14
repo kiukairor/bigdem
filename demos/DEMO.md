@@ -37,6 +37,12 @@ Deployment marker sits at the exact inflection point on the latency chart.
 
 #### Trigger
 
+> **Which script to use:**
+> - **Demo 1 (manual revert):** `scripts/trigger_ai_slowness.sh` — uses `kubectl set env` for instant ~20s effect. No git commit, no CI.
+> - **Demo 2 / Demo 3 (autonomous agent):** use the git commit below — the agent searches git log to find the culprit SHA. `trigger_ai_slowness.sh` leaves no commit and the agent can't find anything to revert.
+>
+> The simplest valid Demo 2 trigger is just the two `sed` lines + commit (values.yaml only, no CI rebuild, ArgoCD applies in ~20s). The full copy from `demos/sources/` adds a more realistic code-level change but requires a ~7 min CI rebuild.
+
 ```bash
 cd $(git rev-parse --show-toplevel)
 cp demos/sources/ai-svc-main-bug-ai-slow.py services/ai-svc/main.py
