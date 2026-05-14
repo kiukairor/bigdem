@@ -12,11 +12,11 @@ action** (NR query, code read, git operation, push). This keeps the log alive so
 operator knows you are working and not stuck. Aim for at least one line every 30 seconds.
 
 **HARD STOP — SHA BOUNDARY:**
-Never inspect, revert, or reference any commit older than `efdcc97` (2026-05-14,
-"fix: disable recommendation cache to prevent stale AI responses"). That is the
-earliest possible bug commit. If you find no suspicious commit at or after that SHA,
-the system is clean — write a summary saying so and exit cleanly. Do not guess at
-older commits.
+Never inspect, revert, or reference any commit older than `9a55352` (2026-05-14,
+"fix: restore clean state after agent reverted wrong commits"). That is the
+last known-good commit. The bug you are looking for is at or after that SHA.
+If you find no suspicious commit at or after that SHA, the system is clean —
+write a summary saying so and exit cleanly. Do not guess at older commits.
 
 **NR account ID: 7697931**
 
