@@ -1,6 +1,7 @@
 import newrelic.agent
 newrelic.agent.initialize()
 
+import asyncio
 import os
 import time
 import uuid
@@ -153,6 +154,11 @@ async def chat(req: ChatRequest):
 
     input_tokens = output_tokens = 0
     finish_reason = ""
+
+    if os.getenv("BUG_AI_SLOW", "false").lower() == "true":
+        log.warning("BUG_AI_SLOW active — injecting 8s delay before chat call")
+        newrelic.agent.add_custom_attribute("bug_ai_slow", True)
+        await asyncio.sleep(8)
 
     try:
         if provider == "gemini":
