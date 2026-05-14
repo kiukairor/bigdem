@@ -154,7 +154,10 @@ async def chat(req: ChatRequest):
     input_tokens = output_tokens = 0
     finish_reason = ""
 
-    time.sleep(8)  # TODO: remove — rate-limit compliance check
+    if os.getenv("BUG_AI_SLOW", "false").lower() == "true":
+        log.warning("BUG_AI_SLOW active — injecting 8s delay before chat call")
+        newrelic.agent.add_custom_attribute("bug_ai_slow", True)
+        time.sleep(8)
 
     try:
         if provider == "gemini":
