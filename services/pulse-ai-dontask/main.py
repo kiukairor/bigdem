@@ -154,7 +154,15 @@ async def chat(req: ChatRequest):
     input_tokens = output_tokens = 0
     finish_reason = ""
 
-    time.sleep(8)  # TODO: remove — rate-limit compliance check
+    # DEMO TOGGLE — DO NOT REMOVE THE ENV CHECK.
+    # This sleep is a deliberate scripted bug used to demonstrate NR latency
+    # detection. The env gate MUST stay: any commit that makes this
+    # unconditional turns the demo into a production outage (see incident
+    # c58e094b-c87b-4d8f-aaeb-0a18af100a5e, 2026-05-14).
+    if os.getenv("BUG_AI_SLOW", "false").lower() == "true":
+        log.warning("BUG_AI_SLOW active — injecting 8s delay before chat call")
+        newrelic.agent.add_custom_attribute("bug_ai_slow", True)
+        time.sleep(8)
 
     try:
         if provider == "gemini":
