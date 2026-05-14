@@ -40,8 +40,7 @@ fire_if_triggered() {
     RUN_LOG=$(mktemp /tmp/demo2-run-XXXXXX.log)
 
     echo "[$(date)] Launching DEMO2_AGENT..." >> "$LOG_FILE"
-    "$CLAUDE" --dangerously-skip-permissions --bare \
-          --settings "$WORKDIR/.claude/settings.local.json" \
+    "$CLAUDE" --dangerously-skip-permissions \
           -p DEMO2_AGENT.md --output-format text > "$RUN_LOG" 2>&1
     EXIT_CODE=$?
 
