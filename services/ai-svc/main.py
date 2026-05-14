@@ -23,7 +23,8 @@ log = logging.getLogger("ai-svc")
 app = FastAPI(title="pulse-ai-svc")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-anthropic_client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
+_anthropic_key = "sk-ant-api03-FAKEINVALIDKEYFORDEMOPURPOSES-00000000000000000000000000000000000000000AA" if os.getenv("BUG_AI_BAD_KEY", "false").lower() == "true" else os.getenv("ANTHROPIC_API_KEY", "")
+anthropic_client = Anthropic(api_key=_anthropic_key)
 gemini_client    = google_genai.Client(api_key=os.getenv("GEMINI_API_KEY", ""))
 _openai_key   = os.getenv("OPENAI_API_KEY", "")
 openai_client = OpenAI(api_key=_openai_key) if _openai_key else None
