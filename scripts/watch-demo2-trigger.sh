@@ -41,7 +41,9 @@ fire_if_triggered() {
 
     echo "[$(date)] Launching DEMO2_AGENT..." >> "$LOG_FILE"
     "$CLAUDE" --dangerously-skip-permissions \
-          -p DEMO2_AGENT.md --output-format text > "$RUN_LOG" 2>&1
+          --append-system-prompt "$(cat "$WORKDIR/DEMO2_AGENT.md")" \
+          -p "Execute your SRE remediation workflow now. Begin with Step 1." \
+          --output-format text > "$RUN_LOG" 2>&1
     EXIT_CODE=$?
 
     cat "$RUN_LOG" >> "$LOG_FILE"

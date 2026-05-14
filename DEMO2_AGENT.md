@@ -298,18 +298,50 @@ SINCE 1 hour ago
 TIMESERIES 2 minutes
 ```
 
-### 4b-iii — Print diagnosis report and skip to Step 7
+### 4b-iii — Apply Direct Fix (if code scan found a bug pattern)
+
+If Step 4b-i found one or more SUSPECT lines matching a known bug pattern:
+
+Apply the same fix recipes from Step 6 directly to the live source file:
+
+- **BUG_AI_SLOW** (`asyncio.sleep` or `time.sleep` in hot path): remove the sleep block entirely. Do not replace it with a shorter sleep.
+- **BUG_STALE_CACHE** (date offset): restore the correct date field — event dates must come from the DB unchanged, no offset arithmetic.
+- **BUG_MEMORY_LEAK** (global list append): remove the append to the global list, or clear it after use. Session data must not accumulate across requests.
+- **BUG_TOKEN_FLOOD** (full DB in AI context): restore the correct slice/limit — AI prompt must only receive the user's saved events and preferences, not all rows.
+
+After editing the file:
+
+```bash
+git add <fixed_file>
+git commit -m "fix(perf): <imperative description of the fix>
+
+Root cause: <one sentence>
+Fix: <one sentence>
+Note: no revertable commit identified — fix applied directly to live source"
+git push origin HEAD
+```
+
+Print:
+```
+[DEMO2] Direct fix pushed — no revert commit was available
+[DEMO2] Root cause : <pattern name>
+[DEMO2] Fix        : <one-line description>
+[DEMO2] CI is rebuilding the fixed image (~7 min arm64). Recovery in progress.
+```
+
+Then go to **Step 7** (direct-fix path).
+
+### 4b-iv — Print diagnosis report (if code scan found nothing)
+
+Only reached if Step 4b-i found **no** matching bug patterns in the live source.
 
 Print:
 ```
 [DEMO2] === Fallback Diagnosis ===
-No revertable commit identified.
+No revertable commit identified. No known bug pattern found in live source.
 Alert      : <conditionName> on <entityName>
 Spike at   : <timestamp from Step 3a>
 Markers    : <list of deployment marker timestamps found, or "none">
-
-Code scan result:
-  <SUSPECT lines found, or "no matching patterns found in live source">
 
 NR signal summary:
   Latency   : <p95 peak value> at <time>
@@ -319,13 +351,12 @@ NR signal summary:
 
 Recommended action:
   <one of:>
-  - Suspect code found at <file>:<line> — manual review and fix recommended
   - No code pattern found — may be infrastructure or config issue; check K8s events
   - Marker timing anomaly — re-run once NR finishes ingesting (wait 5 min and retry)
 [DEMO2] === End ===
 ```
 
-Then **skip Steps 5 and 6** and go directly to **Step 7**.
+Then go to **Step 7** (no-fix path).
 
 ---
 
@@ -411,13 +442,26 @@ Recovery   : ~7 min per CI build (arm64), two builds total
 [DEMO2] === End ===
 ```
 
-**If the fallback path was taken (no commit found):**
+**If the direct-fix path was taken (no culprit commit, but bug found in live source):**
+```
+[DEMO2] === Remediation Complete (direct fix — no revert) ===
+issueId    : <issueId>
+Alert      : <conditionName> on <entityName>
+Opened at  : <openedAt>
+Bad commit : none identified
+Pattern    : <bug pattern matched>
+Commit 1   : direct fix — <short description> (no revert commit)
+Recovery   : ~7 min CI build (arm64)
+[DEMO2] === End ===
+```
+
+**If no fix was possible (no commit found, no bug pattern in live source):**
 ```
 [DEMO2] === Diagnosis Complete (no automated fix applied) ===
 issueId    : <issueId>
 Alert      : <conditionName> on <entityName>
 Opened at  : <openedAt>
-Outcome    : No revertable commit identified — see fallback diagnosis above
+Outcome    : No revertable commit identified, no known bug pattern found in live source
 Action     : Manual intervention required
 [DEMO2] === End ===
 ```
@@ -435,5 +479,6 @@ Print: `[DEMO2] Trigger cleared — ready for next alert`
 - **Step 1**: if trigger file is empty, `{}`, or contains no parseable issueId → stop.
 - **SCOPE**: never call `list_recent_issues`, never substitute a different issueId if search returns nothing. Only the issueId from the trigger file is in scope.
 - **Step 4**: if bad commit cannot be identified → do NOT hard-stop. Enter fallback path (Step 4b). Never guess at a revert.
+- **Step 4b**: if code scan finds a matching bug pattern → apply the direct fix (Step 4b-iii) and commit. Only give up (Step 4b-iv) if no known pattern is found in the live source.
 - **Never** use `kubectl set env` to inject or revert bugs — all changes must be `git commit + push`.
 - **Never** ask for confirmation at any step.
