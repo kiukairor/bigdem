@@ -34,7 +34,7 @@ env:
   EVENT_SVC_URL: "http://event-svc:8080"
   SESSION_SVC_URL: "http://session-svc:8081"
   BUG_AI_SLOW: "false"
-  BUG_AI_BAD_KEY: "true"
+  BUG_AI_BAD_KEY: "false"
 
 resources:
   requests:

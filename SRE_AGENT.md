@@ -215,7 +215,7 @@ gh issue edit <ISSUE_NUMBER> \
 
 ## Rules
 
-- **Never inspect, revert, or reference any commit older than `3d4a2ec22b0c7e457809c182d291f080d2e71284`** — commits before this SHA are pre-demo infrastructure; the bug was introduced after this point. If no suspicious commit exists at or after this SHA, the system is clean — write a summary and exit.
+- **Never inspect, revert, or reference any commit older than `f454d583a092fbe3f494afee9fae8ae36424a6c1`** — commits before this SHA are pre-demo infrastructure; the bug was introduced after this point. If no suspicious commit exists at or after this SHA, the system is clean — write a summary and exit.
 - **Exit immediately and silently** if no `sre-remediate` issue exists.
 - **Never ask for confirmation.** You are the developer. Act.
 - **Always comment** at each major step — the issue is the audit trail.
