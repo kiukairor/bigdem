@@ -45,7 +45,7 @@ spec:
             exec:
               command: ["pg_isready", "-U", "pulse"]
             initialDelaySeconds: 30
-            periodSeconds: 10
+            periodSeconds: 60
   volumeClaimTemplates:
     - metadata:
         name: postgres-data
