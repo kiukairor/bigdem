@@ -23,8 +23,7 @@ log = logging.getLogger("ai-svc")
 app = FastAPI(title="pulse-ai-svc")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-_anthropic_key = "sk-ant-api03-FAKEINVALIDKEYFORDEMOPURPOSES-00000000000000000000000000000000000000000AA" if os.getenv("BUG_AI_BAD_KEY", "false").lower() == "true" else os.getenv("ANTHROPIC_API_KEY", "")
-anthropic_client = Anthropic(api_key=_anthropic_key)
+anthropic_client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
 gemini_client    = google_genai.Client(api_key=os.getenv("GEMINI_API_KEY", ""))
 _openai_key   = os.getenv("OPENAI_API_KEY", "")
 openai_client = OpenAI(api_key=_openai_key) if _openai_key else None
@@ -161,23 +160,8 @@ def get_recommendations(req: RecommendationRequest):
         f"events={len(req.available_events)} saved={len(req.saved_event_ids)} cb={cb.state}"
     )
 
-    if redis_client:
-        try:
-            cached = redis_client.get(cache_key)
-            if cached:
-                newrelic.agent.add_custom_attribute("cache_hit", True)
-                log.info(f"Cache HIT for key={cache_key} — returning cached recommendations")
-                return RecommendationResponse(
-                    recommendations=json.loads(cached),
-                    mode="ai",
-                    ai_response_ms=0,
-                    provider=provider,
-                )
-            else:
-                log.info(f"Cache MISS for key={cache_key} — will call {provider} AI")
-        except Exception as e:
-            log.warning(f"Redis read error (cache disabled for this request): {e}")
-    newrelic.agent.add_custom_attribute("cache_hit", False)
+    # TODO: re-enable cache after stale data investigation resolves
+    log.info(f"Fetching fresh recommendations from {provider} AI (cache disabled)")
 
     if cb.state == "OPEN":
         log.warning(
@@ -196,11 +180,6 @@ def get_recommendations(req: RecommendationRequest):
             provider=provider,
         )
 
-    if os.getenv("BUG_AI_SLOW", "false").lower() == "true":
-        log.warning("BUG_AI_SLOW active — injecting 8s delay before AI call")
-        newrelic.agent.add_custom_attribute("bug_ai_slow", True)
-        time.sleep(8)
-
     try:
         recs = call_ai(req, provider)
         elapsed_ms = int((time.time() - start) * 1000)
@@ -213,13 +192,6 @@ def get_recommendations(req: RecommendationRequest):
 
         newrelic.agent.add_custom_attribute("ai_response_ms", elapsed_ms)
         newrelic.agent.add_custom_attribute("ai_mode", "ai")
-
-        if redis_client:
-            try:
-                redis_client.setex(cache_key, REC_CACHE_TTL, json.dumps(recs))
-                log.info(f"Cached recommendations for key={cache_key} TTL={REC_CACHE_TTL}s")
-            except Exception as e:
-                log.warning(f"Redis write error (recommendations not cached): {e}")
 
         return RecommendationResponse(
             recommendations=recs,
@@ -341,9 +313,6 @@ def _record_llm_event(vendor: str, model: str, prompt: str, reply: str,
         "response.usage.input_tokens": input_tokens,
         "response.usage.output_tokens": output_tokens,
         "response.usage.total_tokens": input_tokens + output_tokens,
-        # OpenAI-convention aliases — required by NR curated AI Monitoring queries
-        "response.usage.prompt_tokens": input_tokens,
-        "response.usage.completion_tokens": output_tokens,
         "response.number_of_messages": 2,
         "duration": duration_ms,
     }
@@ -353,12 +322,10 @@ def _record_llm_event(vendor: str, model: str, prompt: str, reply: str,
     newrelic.agent.record_custom_event("LlmChatCompletionMessage", {
         **base, "sequence": 0, "role": "user", "is_response": False,
         "content": prompt[:4095], "completion_id": request_id,
-        "token_count": input_tokens,
     })
     newrelic.agent.record_custom_event("LlmChatCompletionMessage", {
         **base, "sequence": 1, "role": "assistant", "is_response": True,
         "content": reply[:4095], "completion_id": request_id,
-        "token_count": output_tokens,
     })
 
 
