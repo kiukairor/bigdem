@@ -37,9 +37,10 @@ to correlate). Match the NR alert signal to the most likely pattern:
 | session-svc memory growing, connection errors | `BUG_MEMORY_LEAK` — global list accumulating session payloads | `services/session-svc/main.py` — session handler |
 | LLM token count spike (NR AI Monitoring) | `BUG_TOKEN_FLOOD` — full DB rows passed as AI context | `services/ai-svc/main.py` or `pulse-ai-dontask/main.py` |
 
-The bad commit will always be in `demos/sources/` — a file that the CI copies over the
-real source before building. Look for `cp`-style or overwrite operations in the commit
-touching a file under `demos/sources/`.
+The bad commit will always touch files under `services/` — the trigger process copies
+files from `demos/sources/` into the real service directories and commits those. Look
+for changes to `services/ai-svc/main.py`, `services/pulse-ai-dontask/main.py`,
+`services/event-svc/cmd/main.go`, or `services/session-svc/main.py`.
 
 ---
 
@@ -186,14 +187,14 @@ That path filter is timing-independent and reliable:
 
 ```bash
 git fetch origin
-git log --oneline --since="48 hours ago" -- demos/sources/
+git log --oneline --since="48 hours ago" -- services/
 ```
 
-This returns every commit in the last 48 hours that touched the bug-injection path.
+This returns every commit in the last 48 hours that touched the service source files.
 If that returns nothing, widen the window:
 
 ```bash
-git log --oneline --since="7 days ago" -- demos/sources/
+git log --oneline --since="7 days ago" -- services/
 ```
 
 Inspect each candidate:
