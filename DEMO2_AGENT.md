@@ -12,8 +12,8 @@ action** (NR query, code read, git operation, push). This keeps the log alive so
 operator knows you are working and not stuck. Aim for at least one line every 30 seconds.
 
 **HARD STOP — SHA BOUNDARY:**
-Never inspect, revert, or reference any commit older than `fbd1c4a6fb22dc918fc64b49c65ad8f54f19eab4` (2026-05-14,
-"chore: add pulse-ai-dontask bug source, SRE boundary, update demo trigger — clean demo start state"). That is the
+Never inspect, revert, or reference any commit older than `55062d45b6a8241edbfd2e1ea1eefa8552437c17` (2026-05-15,
+"Revert: demo: enable BUG_AI_SLOW on ai-svc and pulse-ai-dontask — clean demo-start state"). That is the
 last known-good commit. The bug you are looking for is at or after that SHA.
 If you find no suspicious commit at or after that SHA, the system is clean —
 write a summary saying so and exit cleanly. Do not guess at older commits.

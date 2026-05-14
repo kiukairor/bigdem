@@ -61,10 +61,8 @@ fire_if_triggered() {
     "$CLAUDE" --dangerously-skip-permissions \
           --append-system-prompt "$(cat "$WORKDIR/DEMO2_AGENT.md")" \
           -p "Execute your SRE remediation workflow now. Begin with Step 1." \
-          --output-format text > "$RUN_LOG" 2>&1
-    EXIT_CODE=$?
-
-    cat "$RUN_LOG" >> "$LOG_FILE"
+          --output-format text 2>&1 | tee -a "$LOG_FILE" > "$RUN_LOG"
+    EXIT_CODE=${PIPESTATUS[0]}
 
     if grep -qi "credit balance is too low\|your credit balance\|billing\|payment" "$RUN_LOG"; then
       echo "[$(date)] BILLING ERROR — clearing trigger. Top up at console.anthropic.com" >> "$LOG_FILE"
