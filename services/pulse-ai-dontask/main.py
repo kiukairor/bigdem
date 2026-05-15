@@ -1,6 +1,7 @@
 import newrelic.agent
 newrelic.agent.initialize()
 
+import asyncio
 import os
 import time
 import uuid
@@ -34,6 +35,7 @@ openai_client    = OpenAI(api_key=_openai_key) if _openai_key else None
 
 DEFAULT_MODEL  = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite-preview")
 EVENT_SVC_URL  = os.getenv("EVENT_SVC_URL", "http://event-svc:8080")
+BUG_AI_SLOW    = os.getenv("BUG_AI_SLOW", "false").lower() == "true"
 
 SYSTEM_PROMPT = (
     "You are an AI assistant for PULSE, an urban events discovery app. "
@@ -153,6 +155,12 @@ async def chat(req: ChatRequest):
 
     input_tokens = output_tokens = 0
     finish_reason = ""
+
+    newrelic.agent.add_custom_attribute("llm", True)
+
+    if BUG_AI_SLOW:
+        log.warning(f"BUG_AI_SLOW active — injecting 8s delay before AI call model={req.model}")
+        await asyncio.sleep(8)
 
     try:
         if provider == "gemini":
