@@ -38,7 +38,6 @@ GEMINI_MODEL     = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite-preview")
 OPENAI_MODEL     = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 DEFAULT_PROVIDER = os.getenv("AI_PROVIDER", "gemini")
 DEMO_CITY        = os.getenv("DEMO_CITY", "London")
-BUG_AI_SLOW      = os.getenv("BUG_AI_SLOW", "false").lower() == "true"
 EVENT_SVC_URL    = os.getenv("EVENT_SVC_URL", "http://event-svc:8080")
 SESSION_SVC_URL  = os.getenv("SESSION_SVC_URL", "http://session-svc:8081")
 REC_CACHE_TTL    = 300
@@ -151,7 +150,6 @@ def get_recommendations(req: RecommendationRequest):
 
     cache_key = f"rec:{req.user_id}:{city}:{provider}"
 
-    newrelic.agent.add_custom_attribute("llm", True)
     newrelic.agent.add_custom_attribute("user_id", req.user_id)
     newrelic.agent.add_custom_attribute("available_events_count", len(req.available_events))
     newrelic.agent.add_custom_attribute("circuit_breaker_state", cb.state)
@@ -183,9 +181,6 @@ def get_recommendations(req: RecommendationRequest):
         )
 
     try:
-        if BUG_AI_SLOW:
-            log.warning(f"BUG_AI_SLOW active — injecting 8s delay before AI call for user={req.user_id}")
-            time.sleep(8)
         recs = call_ai(req, provider)
         elapsed_ms = int((time.time() - start) * 1000)
         cb.record_success()
