@@ -154,6 +154,8 @@ async def chat(req: ChatRequest):
     input_tokens = output_tokens = 0
     finish_reason = ""
 
+    newrelic.agent.add_custom_attribute("llm", True)
+
     try:
         if provider == "gemini":
             t0 = time.time()

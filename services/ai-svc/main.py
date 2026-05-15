@@ -150,6 +150,7 @@ def get_recommendations(req: RecommendationRequest):
 
     cache_key = f"rec:{req.user_id}:{city}:{provider}"
 
+    newrelic.agent.add_custom_attribute("llm", True)
     newrelic.agent.add_custom_attribute("user_id", req.user_id)
     newrelic.agent.add_custom_attribute("available_events_count", len(req.available_events))
     newrelic.agent.add_custom_attribute("circuit_breaker_state", cb.state)
