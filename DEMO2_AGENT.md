@@ -102,6 +102,11 @@ Status     : OPEN or CLOSED
 [DEMO2] === End ===
 ```
 
+**HARD STOP — CLOSED ALERT:**
+If `Status` is `CLOSED`, print:
+  `[DEMO2] Alert already CLOSED — incident resolved before investigation started. Nothing to do.`
+and **stop immediately**. Do not proceed to Step 3 or any further steps.
+
 Note `openedAt` — you will use this as the incident start time in NRQL queries.
 
 Determine `AFFECTED_SERVICE` from the entity name:
