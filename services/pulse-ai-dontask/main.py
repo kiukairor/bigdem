@@ -2,6 +2,7 @@ import newrelic.agent
 newrelic.agent.initialize()
 
 import os
+import asyncio
 import time
 import uuid
 import logging
@@ -33,6 +34,7 @@ _openai_key      = os.getenv("OPENAI_API_KEY", "")
 openai_client    = OpenAI(api_key=_openai_key) if _openai_key else None
 
 DEFAULT_MODEL  = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite-preview")
+BUG_AI_SLOW    = os.getenv("BUG_AI_SLOW", "false").lower() == "true"
 EVENT_SVC_URL  = os.getenv("EVENT_SVC_URL", "http://event-svc:8080")
 
 SYSTEM_PROMPT = (
@@ -155,6 +157,10 @@ async def chat(req: ChatRequest):
     finish_reason = ""
 
     newrelic.agent.add_custom_attribute("llm", True)
+
+    if BUG_AI_SLOW:
+        log.warning("BUG_AI_SLOW active — injecting 8s delay before AI call")
+        await asyncio.sleep(8)
 
     try:
         if provider == "gemini":
