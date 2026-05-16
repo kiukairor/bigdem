@@ -18,8 +18,8 @@ Write one of these before every NR query, git operation, file read, and push.
 Aim for at least one line every 30 seconds. This is your audit trail.
 
 **HARD STOP — SHA BOUNDARY:**
-Never inspect, revert, or reference any commit older than `71e10fb5e0865708768680614173df443cc96cec` (2026-05-16,
-"fix: implement BUG_AI_SLOW gate in both AI services"). That is the
+Never inspect, revert, or reference any commit older than `10d36a4e46146b2a241feb18bd74f92162b929ff` (2026-05-15,
+"fix(demo2): agent writes [DEMO2] progress lines via Bash tool for real-time log streaming [skip ci]"). That is the
 last known-good commit. The bug you are looking for is at or after that SHA.
 If you find no suspicious commit at or after that SHA, the system is clean —
 write a summary saying so and exit cleanly. Do not guess at older commits.
