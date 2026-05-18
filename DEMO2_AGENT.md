@@ -19,7 +19,7 @@ Aim for at least one line every 30 seconds. This is your audit trail.
 
 **HARD STOP — SHA BOUNDARY:**
 Never inspect, revert, or reference any commit older than `6c8cc136163197a3aa66749dde067c8892b226e3` (2026-05-18,
-"chore: update agent SHA boundary to 41ea0c7 [skip ci]"demo: enable BUG_AI_SLOW on both AI services + advance SRE boundary\""). That is the
+"chore: update agent SHA boundary to 41ea0c7 [skip ci]"). That is the
 last known-good commit. The bug you are looking for is at or after that SHA.
 If you find no suspicious commit at or after that SHA, the system is clean —
 write a summary saying so and exit cleanly. Do not guess at older commits.
