@@ -182,6 +182,27 @@ SINCE 4 hours ago
 LIMIT 10
 ```
 
+### 3e — MANDATORY: Print NR Evidence Summary block
+
+After running all Step 3 queries, always write this structured block to the log (use
+bash echo so it lands in real time, do NOT defer it to the final summary):
+
+```bash
+echo "[DEMO2] === NR Evidence Summary ===" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2] Service    : <AFFECTED_SERVICE>" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2] Alert cond : <conditionName>" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2] Alert since: <openedAt>" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2] p95 peak   : <peak p95 ms> at <timestamp of peak>" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2] avg latency: <avg ms during spike>" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2] Slowest tx : <transaction name> (<avg ms>, <call count> calls)" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2] Error rate : <% or 'none'>" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2] NR marker  : <SHA and timestamp, or 'none found'>" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2] === End NR Evidence ===" >> /home/kiu/pulse-demo2-agent.log
+```
+
+This block is mandatory even if you already have a candidate SHA from 3d. It is the
+visible audit trail that proves the NR investigation happened.
+
 ---
 
 ## Step 4 — Find the Bad Commit via Git Log (primary method)
@@ -239,6 +260,28 @@ Print:
 [DEMO2] Pattern    : <matched bug pattern from table>
 [DEMO2] Evidence   : <exact file + line that matches>
 ```
+
+### 4b — MANDATORY: Print Root Cause Analysis block
+
+After identifying the bad commit, always read the full diff and write this block to
+the log via bash echo (do NOT defer it to the final summary):
+
+```bash
+echo "[DEMO2] === Root Cause Analysis ===" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2] Bug type   : <BUG_AI_SLOW / BUG_STALE_CACHE / BUG_MEMORY_LEAK / BUG_TOKEN_FLOOD>" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2] Mechanism  : <what the change does, e.g. 'adds 8s asyncio.sleep before Gemini call in /chat handler'>" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2] Affected   : <file(s) and key line(s) changed>" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2] User impact: <how it manifests, e.g. 'every /chat request blocks 8s; p95 exceeds alert threshold at moderate load'>" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2] Change     : <old value> -> <new value>, e.g. 'BUG_AI_SLOW: \"false\" -> \"true\"'>" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2] Why commit : <commit message summary>" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2] === End RCA ===" >> /home/kiu/pulse-demo2-agent.log
+```
+
+For env-var toggles (values.yaml only): explain what the env var does at runtime —
+e.g. "BUG_AI_SLOW=true causes pulse-ai-dontask to call asyncio.sleep(8) before every
+AI call in the /chat handler (services/pulse-ai-dontask/main.py); same flag in
+ai-svc causes time.sleep(8) before every /recommendations call."
+Do not just say "flag was set to true" — explain what that flag does in the code.
 
 If no commit touching `demos/sources/` is found in the last 7 days, and NR markers
 also yield nothing useful, do **not** stop.
@@ -443,45 +486,70 @@ Print:
 
 ## Step 7 — Print Final Summary and Clear Trigger
 
+Write the summary block to the log using bash echo so it lands in the log file in
+real time. Use the appropriate template below.
+
 **If the normal path was taken (bad commit found and reverted):**
-```
-[DEMO2] === Remediation Complete ===
-issueId    : <issueId>
-Alert      : <conditionName> on <entityName>
-Opened at  : <openedAt>
-Bad commit : <BAD_SHA>
-Pattern    : <bug pattern matched>
-Commit 1   : revert <BAD_SHA> — fast recovery, CI rebuilding
-Commit 2   : proper fix — <short description>
-Recovery   : ~7 min per CI build (arm64), two builds total
-[DEMO2] === End ===
+```bash
+echo "[DEMO2] === Remediation Complete ===" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2] issueId    : <issueId>" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2] Alert      : <conditionName> on <entityName>" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2] Opened at  : <openedAt>" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2]" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2] Timeline:" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2]   <bad_commit_timestamp>  Bad commit <BAD_SHA> pushed" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2]   <nr_marker_timestamp>   NR deployment marker fired (<'none' if absent>)" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2]   <openedAt>              Alert triggered" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2]   <revert_timestamp>      Revert <REVERT_SHA> pushed by SRE agent" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2]" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2] Root cause : <one sentence: what the change did at runtime>" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2] Bug pattern: <matched pattern name>" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2] Evidence   : <file(s) + what changed, e.g. both values.yaml BUG_AI_SLOW false->true>" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2]" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2] NR signals : p95=<peak ms>, avg=<avg ms>, slowest tx=<name>" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2]" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2] Commit 1   : revert <BAD_SHA> as <REVERT_SHA>" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2] Commit 2   : <'proper fix — <description>' OR 'N/A — revert is complete fix for env-var toggle'>" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2] Recovery   : <~20s ArgoCD env-var reconcile / ~7 min CI rebuild (arm64)>" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2]" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2] Verify recovery:" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2]   kubectl get pods -n pulse-prod -l app=<service>" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2]   kubectl exec -n pulse-prod deploy/<service> -- env | grep BUG_" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2]   NR latency should return to baseline within 2-3 min of pod restart" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2] === End ===" >> /home/kiu/pulse-demo2-agent.log
 ```
 
 **If the direct-fix path was taken (no culprit commit, but bug found in live source):**
-```
-[DEMO2] === Remediation Complete (direct fix — no revert) ===
-issueId    : <issueId>
-Alert      : <conditionName> on <entityName>
-Opened at  : <openedAt>
-Bad commit : none identified
-Pattern    : <bug pattern matched>
-Commit 1   : direct fix — <short description> (no revert commit)
-Recovery   : ~7 min CI build (arm64)
-[DEMO2] === End ===
+```bash
+echo "[DEMO2] === Remediation Complete (direct fix — no revert) ===" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2] issueId    : <issueId>" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2] Alert      : <conditionName> on <entityName>" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2] Opened at  : <openedAt>" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2] Bad commit : none identified" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2] Root cause : <one sentence: what the bug does at runtime>" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2] Bug pattern: <matched pattern name>" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2] Evidence   : <file + lines changed>" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2] NR signals : p95=<peak ms>, avg=<avg ms>, slowest tx=<name>" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2] Commit 1   : direct fix — <short description>" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2] Recovery   : ~7 min CI build (arm64)" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2] Verify     : kubectl get pods -n pulse-prod; kubectl exec deploy/<service> -- env | grep BUG_" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2] === End ===" >> /home/kiu/pulse-demo2-agent.log
 ```
 
 **If no fix was possible (no commit found, no bug pattern in live source):**
-```
-[DEMO2] === Diagnosis Complete (no automated fix applied) ===
-issueId    : <issueId>
-Alert      : <conditionName> on <entityName>
-Opened at  : <openedAt>
-Outcome    : No revertable commit identified, no known bug pattern found in live source
-Action     : Manual intervention required
-[DEMO2] === End ===
+```bash
+echo "[DEMO2] === Diagnosis Complete (no automated fix applied) ===" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2] issueId    : <issueId>" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2] Alert      : <conditionName> on <entityName>" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2] Opened at  : <openedAt>" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2] NR signals : p95=<peak ms>, avg=<avg ms>, slowest tx=<name>" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2] Outcome    : No revertable commit identified, no known bug pattern found in live source" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2] Action     : Manual intervention required" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2] Markers    : <list of deployment marker timestamps found, or 'none'>" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2] === End ===" >> /home/kiu/pulse-demo2-agent.log
 ```
 
-In both cases, clear the trigger file using the Write tool:
+In all cases, clear the trigger file using the Write tool:
   Write `{}` to `/home/kiu/bigdem/versus/.sre-demo2-trigger`
 
 Print: `[DEMO2] Trigger cleared — ready for next alert`
