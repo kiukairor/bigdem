@@ -51,6 +51,52 @@ The bad commit typically touches files under `services/` (code-level bug injecti
 
 ---
 
+## NR Deployment Marker Helper — call this after EVERY git push
+
+Credentials (`NEW_RELIC_USER_API_KEY`, `NR_ENTITY_GUID_*`, `NR_API_URL`) come from
+`~/.config/pulse-sre/env`, which is already sourced by the watcher before the agent
+starts. Do not re-source it.
+
+**Entity GUID mapping per bug pattern — fire for ALL entities in the list:**
+
+| Bug pattern | GUID vars to target |
+|-------------|-------------------|
+| `BUG_AI_SLOW` (values.yaml or code) | `NR_ENTITY_GUID_AI_SVC` + `NR_ENTITY_GUID_PULSE_AI_DONTASK` |
+| `BUG_STALE_CACHE` | `NR_ENTITY_GUID_AI_SVC` (event-svc has no APM GUID var) |
+| `BUG_MEMORY_LEAK` | `NR_ENTITY_GUID_SESSION_SVC` |
+| `BUG_TOKEN_FLOOD` | `NR_ENTITY_GUID_AI_SVC` + `NR_ENTITY_GUID_PULSE_AI_DONTASK` |
+| unknown / fallback | fire for all three GUID vars |
+
+**Bash template** (substitute `DESCRIPTION` and the GUID var list before running):
+
+```bash
+NR_API="${NR_API_URL:-https://api.eu.newrelic.com/graphql}"
+PUSHED_SHA=$(git rev-parse HEAD)
+DESCRIPTION="<describe what this commit does, e.g. sre-agent: revert <BAD_SHA> — BUG_AI_SLOW disabled>"
+
+for GUID_VAR in NR_ENTITY_GUID_AI_SVC NR_ENTITY_GUID_PULSE_AI_DONTASK; do
+  GUID="${!GUID_VAR}"
+  [ -z "$GUID" ] && echo "[DEMO2] NR marker skipped: $GUID_VAR not set" >> /home/kiu/pulse-demo2-agent.log && continue
+  RESULT=$(curl -s -X POST "$NR_API" \
+    -H "Content-Type: application/json" \
+    -H "Api-Key: $NEW_RELIC_USER_API_KEY" \
+    -d "{\"query\": \"mutation { changeTrackingCreateDeployment(deployment: { entityGuid: \\\"$GUID\\\", version: \\\"$PUSHED_SHA\\\", description: \\\"$DESCRIPTION\\\" }) { deploymentId } }\"}")
+  DEPLOY_ID=$(echo "$RESULT" | grep -o '"deploymentId":"[^"]*"' | cut -d'"' -f4)
+  if [ -n "$DEPLOY_ID" ]; then
+    echo "[DEMO2] NR marker fired: $GUID_VAR — deploymentId=$DEPLOY_ID version=$PUSHED_SHA" >> /home/kiu/pulse-demo2-agent.log
+  else
+    echo "[DEMO2] NR marker FAILED: $GUID_VAR — response: $RESULT" >> /home/kiu/pulse-demo2-agent.log
+  fi
+done
+```
+
+Always log success (`deploymentId` extracted) or failure (full response) to the log file.
+Never skip this step after a push, even if you think the marker was already fired for
+the trigger commit — that was the bug marker; this is the **fix/revert marker** and
+it must appear as a separate vertical line in NR charts.
+
+---
+
 ## Step 1 — Read Trigger File
 
 Use the Read tool to read: `/home/kiu/bigdem/versus/.sre-demo2-trigger`
@@ -386,6 +432,11 @@ Print:
 [DEMO2] CI is rebuilding the fixed image (~7 min arm64). Recovery in progress.
 ```
 
+Immediately after the push, fire the NR deployment marker using the **NR Deployment
+Marker Helper** above. Set:
+- `DESCRIPTION` = `"sre-agent: direct fix — <PATTERN> removed (no culprit commit)"`
+- GUID var list = per-pattern mapping from the Helper table
+
 Then go to **Step 7** (direct-fix path).
 
 ### 4b-iv — Print diagnosis report (if code scan found nothing)
@@ -440,6 +491,14 @@ Print:
 [DEMO2] CI is rebuilding clean image (~7 min arm64). Recovery in progress.
 ```
 
+Immediately after the push, fire the NR deployment marker using the **NR Deployment
+Marker Helper** above. Set:
+- `DESCRIPTION` = `"sre-agent: revert <BAD_SHA> — <PATTERN> disabled (fast recovery)"`
+- GUID var list = per-pattern mapping from the Helper table
+
+This is the **recovery marker** — it must be a separate vertical line in NR, distinct
+from the bug marker that was fired when the bad commit was deployed.
+
 ---
 
 ## Step 6 — Write Proper Fix (Commit 2)
@@ -482,6 +541,11 @@ Print:
 [DEMO2] Fix        : <one-line description>
 ```
 
+Immediately after the push, fire the NR deployment marker using the **NR Deployment
+Marker Helper** above. Set:
+- `DESCRIPTION` = `"sre-agent: fix committed — <PATTERN> removed from source"`
+- GUID var list = per-pattern mapping from the Helper table
+
 ---
 
 ## Step 7 — Print Final Summary and Clear Trigger
@@ -510,6 +574,7 @@ echo "[DEMO2] NR signals : p95=<peak ms>, avg=<avg ms>, slowest tx=<name>" >> /h
 echo "[DEMO2]" >> /home/kiu/pulse-demo2-agent.log
 echo "[DEMO2] Commit 1   : revert <BAD_SHA> as <REVERT_SHA>" >> /home/kiu/pulse-demo2-agent.log
 echo "[DEMO2] Commit 2   : <'proper fix — <description>' OR 'N/A — revert is complete fix for env-var toggle'>" >> /home/kiu/pulse-demo2-agent.log
+echo "[DEMO2] NR markers : fix marker fired for <entity list> (deploymentId logged above)" >> /home/kiu/pulse-demo2-agent.log
 echo "[DEMO2] Recovery   : <~20s ArgoCD env-var reconcile / ~7 min CI rebuild (arm64)>" >> /home/kiu/pulse-demo2-agent.log
 echo "[DEMO2]" >> /home/kiu/pulse-demo2-agent.log
 echo "[DEMO2] Verify recovery:" >> /home/kiu/pulse-demo2-agent.log
